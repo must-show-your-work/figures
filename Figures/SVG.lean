@@ -137,8 +137,11 @@ private def renderShape (canvas : Canvas) : Shape Pos2 → String
     s!"  <circle id=\"{id}\" cx=\"{fmt center.x}\" cy=\"{fmt center.y}\" r=\"{fmt radius}\" fill=\"none\"{styleAttrs s} />"
   | .text id pos content =>
     -- HTML-escape the content's `& < >` so the SVG stays well-formed.
+    -- Explicit `fill` is load-bearing: libresvg renders text as
+    -- invisible without it (the SVG spec defaults to black, but
+    -- rasterizers vary on whether they honor that default).
     let escaped := content.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
-    s!"  <text id=\"{id}\" x=\"{fmt pos.x}\" y=\"{fmt pos.y}\" font-family=\"serif\" font-size=\"14\">{escaped}</text>"
+    s!"  <text id=\"{id}\" x=\"{fmt pos.x}\" y=\"{fmt pos.y}\" font-family=\"serif\" font-size=\"14\" fill=\"#073642\">{escaped}</text>"
 
 
 /-! ## Annotations
@@ -178,7 +181,8 @@ private def renderAnnotation (canvas : Canvas) (shapes : Array (Shape Pos2)) (a 
   | .label target text => do
       let p ← anchorOf canvas shapes target
       let escaped := text.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
-      some s!"  <text x=\"{fmt (p.x + 8)}\" y=\"{fmt (p.y - 8)}\" font-family=\"serif\" font-size=\"14\" font-style=\"italic\">{escaped}</text>"
+      -- `fill` is load-bearing for libresvg (see `renderShape` for `.text`).
+      some s!"  <text x=\"{fmt (p.x + 8)}\" y=\"{fmt (p.y - 8)}\" font-family=\"serif\" font-size=\"14\" font-style=\"italic\" fill=\"#073642\">{escaped}</text>"
   | .highlight _ _ =>
       -- Highlights are realized by post-processing shapes (see `applyHighlights` below).
       none

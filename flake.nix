@@ -18,7 +18,15 @@
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [ "x86_64-linux" "aarch64-darwin" ];
 
-      perSystem = { config, pkgs, system, ... }: {
+      perSystem = { config, pkgs, system, ... }: let
+        # Link-time libs for `lake exe`: clang emits `-lc++ -lc++abi
+        # -lgmp -luv` and needs to find them on LIBRARY_PATH.
+        linker_deps = [
+          pkgs.llvmPackages.libcxx
+          pkgs.gmp
+          pkgs.libuv
+        ];
+      in {
         devShells.default = shed.lib.mkLeanShell {
           inherit pkgs system;
           name = "figures lean shell";
@@ -38,6 +46,10 @@
               };
             };
           };
+
+          extraShellHook = ''
+            export LIBRARY_PATH="${pkgs.lib.makeLibraryPath linker_deps}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
+          '';
         };
       };
     };

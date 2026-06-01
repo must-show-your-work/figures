@@ -18,3 +18,9 @@ package "figures" where
 lean_lib «Figures» where
   srcDir := "."
   roots := #[`Figures]
+
+-- Preview tool: dump each `Figures.Examples` scene to /tmp/figures-*.svg
+-- so the renderer's output can be inspected in a browser without
+-- needing atlas / lean.nvim. Run with `lake exe preview-examples`.
+lean_exe "preview-examples" where
+  root := `scripts.PreviewExamples
