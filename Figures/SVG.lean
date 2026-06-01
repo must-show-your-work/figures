@@ -49,6 +49,12 @@ structure Canvas where
   /-- Margin from the edge for layout placement (points won't be put
   closer than this to the canvas edge). -/
   margin : Float := 40
+  /-- Background fill applied via a full-viewport `<rect>` as the first
+  child. Defaults to Solarized base3 (paper-white); set to `"none"` to
+  skip emitting the rect (transparent background). Without this, dark
+  strokes on a dark terminal background are hard to read in the
+  InfoView. -/
+  background : String := "#fdf6e3"
 deriving Repr, Inhabited
 
 def Canvas.center (c : Canvas) : Pos := ⟨c.width / 2, c.height / 2⟩
@@ -297,7 +303,9 @@ def render (c : Construction) (canvas : Canvas := {}) : String :=
   let annLines := c.annotations.filterMap (annotationSvg layout)
   let header :=
     s!"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{fmt canvas.width}\" height=\"{fmt canvas.height}\" viewBox=\"0 0 {fmt canvas.width} {fmt canvas.height}\">"
-  String.intercalate "\n" ([header] ++ lines ++ annLines ++ ["</svg>"])
+  let bgLines := if canvas.background = "none" then [] else
+    [s!"  <rect width=\"100%\" height=\"100%\" fill=\"{canvas.background}\" />"]
+  String.intercalate "\n" ([header] ++ bgLines ++ lines ++ annLines ++ ["</svg>"])
 
 end Figures.SVG
 
