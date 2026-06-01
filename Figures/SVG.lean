@@ -192,16 +192,38 @@ private def anchorOf (d : Drawn) : Pos :=
   | .line a b         => ⟨(a.x + b.x) / 2, (a.y + b.y) / 2⟩
   | .circle center _  => center
 
-/-- Highlight modifier → SVG attribute fragment to splice into the
-target's element. -/
-private def styleAttrs (s : Style) : String :=
-  match s with
-  | .default => ""
-  | .dashed  => " stroke-dasharray=\"5,3\""
-  | .dotted  => " stroke-dasharray=\"1,2\""
-  | .bold    => " stroke-width=\"3\""
-  | .faint   => " stroke-opacity=\"0.35\""
-  | .color c => s!" stroke=\"{c}\""
+/-- Per-attribute selectors driven by an optional `Style`. Computing
+each attribute once (rather than appending a `style` snippet to a
+defaulted element) avoids duplicate-attribute XML which libresvg
+rejects with `resvg_parse_tree_from_data failed: 6`. -/
+private def strokeColorAttr (style : Option Style) (default : String) : String :=
+  match style with
+  | some (.color c) => s!" stroke=\"{c}\""
+  | _               => s!" stroke=\"{default}\""
+
+private def strokeWidthAttr (style : Option Style) (default : String) : String :=
+  match style with
+  | some .bold => " stroke-width=\"3\""
+  | _          => s!" stroke-width=\"{default}\""
+
+private def dashAttr (style : Option Style) : String :=
+  match style with
+  | some .dashed => " stroke-dasharray=\"5,3\""
+  | some .dotted => " stroke-dasharray=\"1,2\""
+  | _            => ""
+
+private def opacityAttr (style : Option Style) : String :=
+  match style with
+  | some .faint => " stroke-opacity=\"0.35\""
+  | _           => ""
+
+/-- Combined stroke-related attributes for line/segment/circle outlines.
+Each attribute appears at most once in the output. -/
+private def lineStyleAttrs (style : Option Style) : String :=
+  strokeColorAttr style "black"
+    ++ strokeWidthAttr style "1.5"
+    ++ dashAttr style
+    ++ opacityAttr style
 
 /-- Collect a per-name style override from annotations. Last one wins
 on a given name. -/
@@ -227,17 +249,19 @@ private def fmt (x : Float) : String :=
 
 /-- Emit the SVG element for one named drawn object. -/
 private def drawnSvg (name : String) (d : Drawn) (style : Option Style) : String :=
-  let extra := match style with | some s => styleAttrs s | none => ""
+  let lineAttrs := lineStyleAttrs style
   match d with
   | .point p =>
-    -- A small filled circle for points.
-    s!"  <circle id=\"{name}\" cx=\"{fmt p.x}\" cy=\"{fmt p.y}\" r=\"4\" fill=\"black\"{extra} />"
+    -- Points: a filled disc, no stroke. `.bold` highlight enlarges the
+    -- radius rather than thickening a stroke that doesn't exist.
+    let r := match style with | some .bold => "6" | _ => "4"
+    s!"  <circle id=\"{name}\" cx=\"{fmt p.x}\" cy=\"{fmt p.y}\" r=\"{r}\" fill=\"black\" />"
   | .segment a b =>
-    s!"  <line id=\"{name}\" x1=\"{fmt a.x}\" y1=\"{fmt a.y}\" x2=\"{fmt b.x}\" y2=\"{fmt b.y}\" stroke=\"black\" stroke-width=\"1.5\"{extra} />"
+    s!"  <line id=\"{name}\" x1=\"{fmt a.x}\" y1=\"{fmt a.y}\" x2=\"{fmt b.x}\" y2=\"{fmt b.y}\"{lineAttrs} />"
   | .line a b =>
-    s!"  <line id=\"{name}\" x1=\"{fmt a.x}\" y1=\"{fmt a.y}\" x2=\"{fmt b.x}\" y2=\"{fmt b.y}\" stroke=\"black\" stroke-width=\"1.5\"{extra} />"
+    s!"  <line id=\"{name}\" x1=\"{fmt a.x}\" y1=\"{fmt a.y}\" x2=\"{fmt b.x}\" y2=\"{fmt b.y}\"{lineAttrs} />"
   | .circle c r =>
-    s!"  <circle id=\"{name}\" cx=\"{fmt c.x}\" cy=\"{fmt c.y}\" r=\"{fmt r}\" fill=\"none\" stroke=\"black\" stroke-width=\"1.5\"{extra} />"
+    s!"  <circle id=\"{name}\" cx=\"{fmt c.x}\" cy=\"{fmt c.y}\" r=\"{fmt r}\" fill=\"none\"{lineAttrs} />"
 
 /-- Emit the SVG element for one annotation. -/
 private def annotationSvg (layout : Std.HashMap String Drawn) (a : Annotation) : Option String :=

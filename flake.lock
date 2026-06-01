@@ -124,8 +124,8 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1780284200,
-        "narHash": "sha256-uzAweJ8aazmWmGRJ4UDHIXa5oO//tYwIqnUyWwT7QHw=",
+        "lastModified": 1780285337,
+        "narHash": "sha256-LhpwCA0EEXIiS/Dt96KDleF6yDRrOXRDr+7F9p7mAPk=",
         "path": "/storage/code/must-show-your-work/shed",
         "type": "path"
       },
