@@ -55,6 +55,33 @@ private def setPos (particles : Array Particle) (id : ParticleId) (pos : Pos2) :
     particles.set! id { particles[id]! with pos := pos }
   else particles
 
+/-- `identify a b`: pin two particles to the same position. Used by
+the construction DSL's `assert equal A B` to express *figure*
+equality — two named points must coincide visually. Implements the
+"degenerate case" mode of argument (e.g. Pasch's `if segment A B =
+segment B C then A = C`): the same construction with one extra
+`assert equal A C` renders a figure where A and C overlap.
+
+Picks the midpoint of the two particles each step so neither
+endpoint dominates; pinned particles stay where they are and the
+non-pinned one moves to the pinned position. -/
+def identify (a b : ParticleId) : Projection := fun particles =>
+  if a < particles.size && b < particles.size then
+    let pa := particles[a]!.pos
+    let pb := particles[b]!.pos
+    -- Pinning policy: if exactly one is pinned, the other moves to
+    -- it. Otherwise both head to the midpoint.
+    let mid : Pos2 := ((pa.x + pb.x) / 2, (pa.y + pb.y) / 2)
+    let (targetA, targetB) :=
+      match particles[a]!.pinned, particles[b]!.pinned with
+      | true,  true  => (pa, pb)  -- both pinned: nothing we can do
+      | true,  false => (pa, pa)
+      | false, true  => (pb, pb)
+      | false, false => (mid, mid)
+    let particles := setPos particles a targetA
+    setPos particles b targetB
+  else particles
+
 /-- `between a x b`: snap x to the closest interior point of segment ab.
 Clamps to `[0.1, 0.9]` along the segment to keep X strictly between A
 and B (not coinciding with either endpoint). -/
