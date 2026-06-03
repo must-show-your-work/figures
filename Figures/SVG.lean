@@ -66,7 +66,12 @@ with `resvg_parse_tree_from_data failed: 6`). -/
 /-- Map a `Style` (from a `.highlight` annotation) to a per-shape
 record of attribute overrides. -/
 private structure ShapeStyle where
-  strokeColor   : String := "black"
+  -- `currentColor` defers to the host's CSS `color` property so the
+  -- figure inverts cleanly between light and dark themes. Backends
+  -- that supply a concrete page color (default Canvas background)
+  -- still render correctly because browsers resolve `currentColor`
+  -- against the enclosing element's computed color.
+  strokeColor   : String := "currentColor"
   strokeWidth   : String := "1.5"
   strokeDash    : Option String := none  -- e.g. "5,3"
   strokeOpacity : Option String := none  -- e.g. "0.35"
@@ -133,7 +138,7 @@ to the viewport. Other shape kinds ignore the canvas. -/
 private def renderShape (canvas : Canvas) : Shape Pos2 → String
   | .point id pos style =>
     let s := applyStyle style
-    s!"  <circle id=\"{id}\" cx=\"{fmt pos.x}\" cy=\"{fmt pos.y}\" r=\"{s.pointRadius}\" fill=\"black\" />"
+    s!"  <circle id=\"{id}\" cx=\"{fmt pos.x}\" cy=\"{fmt pos.y}\" r=\"{s.pointRadius}\" fill=\"currentColor\" />"
   | .segment id a b style =>
     let s := applyStyle style
     s!"  <line id=\"{id}\" x1=\"{fmt a.x}\" y1=\"{fmt a.y}\" x2=\"{fmt b.x}\" y2=\"{fmt b.y}\"{styleAttrs s} />"
@@ -237,7 +242,7 @@ private def renderAnnotation (canvas : Canvas) (shapes : Array (Shape Pos2)) (a 
       let p ← anchorOf canvas shapes target
       let escaped := text.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
       some <| String.intercalate "\n"
-        [ s!"  <line x1=\"{fmt (p.x + 12)}\" y1=\"{fmt p.y}\" x2=\"{fmt (p.x + 60)}\" y2=\"{fmt p.y}\" stroke=\"#555\" stroke-width=\"0.75\" />"
+        [ s!"  <line x1=\"{fmt (p.x + 12)}\" y1=\"{fmt p.y}\" x2=\"{fmt (p.x + 60)}\" y2=\"{fmt p.y}\" stroke=\"currentColor\" stroke-opacity=\"0.55\" stroke-width=\"0.75\" />"
         , s!"  <text class=\"callout\" x=\"{fmt (p.x + 65)}\" y=\"{fmt (p.y + 4)}\">{escaped}</text>" ]
 
 
@@ -297,7 +302,7 @@ def render (s : Scene Pos2) (canvas : Canvas := {}) : String :=
   let arrowDefs :=
     "  <defs>\n"
     ++ "    <marker id=\"arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n"
-    ++ "      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"black\" />\n"
+    ++ "      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"currentColor\" />\n"
     ++ "    </marker>\n"
     ++ "  </defs>"
   let bgLines := if canvas.background = "none" then [] else
