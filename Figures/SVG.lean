@@ -24,13 +24,22 @@ open Figures
 /-! ## Canvas / viewport -/
 
 structure Canvas where
-  width  : Float := 480
-  height : Float := 480
+  width  : Float := 1280
+  height : Float := 720
   /-- Background fill applied via a full-viewport `<rect>` as the
-  first child. Defaults to Solarized base3 (paper-white); set to
-  `"none"` to skip the rect and get a transparent background. Without
-  this, dark strokes on a dark terminal background are unreadable. -/
-  background : String := "#fdf6e3"
+  first child. Defaults to an aged-legal-pad yellow; set to `"none"`
+  to skip the rect and get a transparent background. Without this,
+  dark strokes on a dark terminal background are unreadable. -/
+  background : String := "#f9e8a0"
+  /-- Whether to emit the inline `<style>` block that sets
+  font-family / fill / halo for the `.txt`, `.lbl`, `.callout`
+  classes. Defaults to `true` for standalone consumers (the
+  ProofWidgets InfoView, libresvg rasterization, `IO.println`
+  debug) which have no host CSS to fall back to. Hosts that DO
+  supply their own CSS for those classes (e.g. the atlas viewer
+  which wants editorial theme overrides) pass `inlineStyles := false`
+  to get a markup-only SVG; their stylesheet then drives the look. -/
+  inlineStyles : Bool := true
 deriving Repr, Inhabited
 
 
@@ -128,6 +137,14 @@ private def renderShape (canvas : Canvas) : Shape Pos2 → String
   | .segment id a b style =>
     let s := applyStyle style
     s!"  <line id=\"{id}\" x1=\"{fmt a.x}\" y1=\"{fmt a.y}\" x2=\"{fmt b.x}\" y2=\"{fmt b.y}\"{styleAttrs s} />"
+  | .ray id a b style =>
+    -- Extend ~25% past b in the (a→b) direction; arrowhead marker
+    -- (see `render` header's <defs>) caps the open end.
+    let s := applyStyle style
+    let dx := b.x - a.x
+    let dy := b.y - a.y
+    let ext : Pos2 := (b.x + dx * 0.25, b.y + dy * 0.25)
+    s!"  <line id=\"{id}\" x1=\"{fmt a.x}\" y1=\"{fmt a.y}\" x2=\"{fmt ext.x}\" y2=\"{fmt ext.y}\"{styleAttrs s} marker-end=\"url(#arrow)\" />"
   | .line id a b style =>
     let s := applyStyle style
     let (p, q) := extendToViewport a b canvas.width canvas.height
@@ -136,12 +153,13 @@ private def renderShape (canvas : Canvas) : Shape Pos2 → String
     let s := applyStyle style
     s!"  <circle id=\"{id}\" cx=\"{fmt center.x}\" cy=\"{fmt center.y}\" r=\"{fmt radius}\" fill=\"none\"{styleAttrs s} />"
   | .text id pos content =>
-    -- HTML-escape the content's `& < >` so the SVG stays well-formed.
-    -- Explicit `fill` is load-bearing: libresvg renders text as
-    -- invisible without it (the SVG spec defaults to black, but
-    -- rasterizers vary on whether they honor that default).
+    -- HTML-escape `& < >` so the SVG stays well-formed. Styling is
+    -- via the `.txt` CSS class in the `<style>` block (see `render`).
+    -- This matches the hand-authored SVGs that render reliably in
+    -- lean.nvim's libresvg path; inline `font-family` attributes
+    -- silently drop text in some libresvg configurations.
     let escaped := content.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
-    s!"  <text id=\"{id}\" x=\"{fmt pos.x}\" y=\"{fmt pos.y}\" font-family=\"serif\" font-size=\"14\" fill=\"#073642\">{escaped}</text>"
+    s!"  <text id=\"{id}\" class=\"txt\" x=\"{fmt pos.x}\" y=\"{fmt pos.y}\">{escaped}</text>"
 
 
 /-! ## Annotations
@@ -157,18 +175,26 @@ the line's midpoint. -/
 private def shapeAnchor (canvas : Canvas) : Shape Pos2 → Pos2
   | .point _ pos _       => pos
   | .segment _ a b _     => ((a.x + b.x) / 2, (a.y + b.y) / 2)
+  | .ray _ a b _         =>
+    -- Anchor at the arrow tip (slightly past b in (a→b) direction).
+    let dx := b.x - a.x
+    let dy := b.y - a.y
+    (b.x + dx * 0.25, b.y + dy * 0.25)
   | .line _ a b _        =>
-    let (_, q) := extendToViewport a b canvas.width canvas.height
-    -- Nudge inward so the label stays on-canvas regardless of which
-    -- edge the line exited.
-    let nudgeX := if q.x > canvas.width / 2 then -20 else 20
-    (q.x + nudgeX, q.y)
+    -- Anchor at the entry viewport intersection (typically upper-left
+    -- for a downward-sloping line) — standard geometry convention
+    -- places the line label at the "less-busy" end of the visible
+    -- segment, and entry usually has more empty space than exit.
+    let (p, _) := extendToViewport a b canvas.width canvas.height
+    let nudgeX := if p.x < canvas.width / 2 then 40 else -40
+    (p.x + nudgeX, p.y)
   | .circle _ center _ _ => center
   | .text _ pos _        => pos
 
 private def shapeId : Shape Pos2 → Name
   | .point id _ _      => id
   | .segment id _ _ _  => id
+  | .ray id _ _ _      => id
   | .line id _ _ _     => id
   | .circle id _ _ _   => id
   | .text id _ _       => id
@@ -178,11 +204,29 @@ private def anchorOf (canvas : Canvas) (shapes : Array (Shape Pos2)) (target : N
 
 private def renderAnnotation (canvas : Canvas) (shapes : Array (Shape Pos2)) (a : Annotation) : Option String :=
   match a with
-  | .label target text => do
+  | .label target text offset? => do
       let p ← anchorOf canvas shapes target
       let escaped := text.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
-      -- `fill` is load-bearing for libresvg (see `renderShape` for `.text`).
-      some s!"  <text x=\"{fmt (p.x + 8)}\" y=\"{fmt (p.y - 8)}\" font-family=\"serif\" font-size=\"14\" font-style=\"italic\" fill=\"#073642\">{escaped}</text>"
+      -- Two paths: (1) caller supplied a solved offset → use it; (2)
+      -- fallback heuristic — direction from canvas center to anchor.
+      let (ox, oy) ← match offset? with
+        | some off => some (off.x, off.y)
+        | none =>
+          let cx := canvas.width / 2
+          let cy := canvas.height / 2
+          let dx := p.x - cx
+          let dy := p.y - cy
+          let len := (dx * dx + dy * dy).sqrt
+          let standoff : Float := 28
+          if len < 1e-9 then some (0, -standoff)
+          else some (dx / len * standoff, dy / len * standoff)
+      let anchor := if ox >= 0 then "start" else "end"
+      let margin : Float := 60
+      let raw_x := p.x + ox
+      let raw_y := p.y + oy
+      let lx := max margin (min (canvas.width  - margin) raw_x)
+      let ly := max margin (min (canvas.height - margin) raw_y)
+      some s!"  <text class=\"lbl\" text-anchor=\"{anchor}\" x=\"{fmt lx}\" y=\"{fmt ly}\">{escaped}</text>"
   | .highlight _ _ =>
       -- Highlights are realized by post-processing shapes (see `applyHighlights` below).
       none
@@ -194,7 +238,7 @@ private def renderAnnotation (canvas : Canvas) (shapes : Array (Shape Pos2)) (a 
       let escaped := text.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
       some <| String.intercalate "\n"
         [ s!"  <line x1=\"{fmt (p.x + 12)}\" y1=\"{fmt p.y}\" x2=\"{fmt (p.x + 60)}\" y2=\"{fmt p.y}\" stroke=\"#555\" stroke-width=\"0.75\" />"
-        , s!"  <text x=\"{fmt (p.x + 65)}\" y=\"{fmt (p.y + 4)}\" font-family=\"sans-serif\" font-size=\"12\" fill=\"#555\">{escaped}</text>" ]
+        , s!"  <text class=\"callout\" x=\"{fmt (p.x + 65)}\" y=\"{fmt (p.y + 4)}\">{escaped}</text>" ]
 
 
 /-! ## Highlight pass
@@ -213,6 +257,7 @@ private def applyHighlights (shapes : Array (Shape Pos2)) (anns : Array Annotati
             match s with
             | .point id pos _      => .point id pos style
             | .segment id a b _    => .segment id a b style
+            | .ray id a b _        => .ray id a b style
             | .line id a b _       => .line id a b style
             | .circle id c r _     => .circle id c r style
             | other                => other
@@ -231,9 +276,36 @@ def render (s : Scene Pos2) (canvas : Canvas := {}) : String :=
   let annLines := s.annotations.toList.filterMap (renderAnnotation canvas styledShapes)
   let header :=
     s!"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{fmt canvas.width}\" height=\"{fmt canvas.height}\" viewBox=\"0 0 {fmt canvas.width} {fmt canvas.height}\">"
+  -- CSS style block for text. Uses concrete font-family names instead
+  -- of the generic `serif`/`sans-serif` keywords: resvg/libresvg's
+  -- fontdb resolves family names exactly and silently drops text when
+  -- it can't match `serif` (browsers and most other UAs alias generic
+  -- keywords, but libresvg does not). Browsers ignore unknown families
+  -- and fall back to the next, so listing the generic as a fallback
+  -- keeps the SVG portable.
+  let bg := canvas.background
+  let halo := "stroke: " ++ bg ++ "; stroke-width: 4px; paint-order: stroke;"
+  let styleBlock := if !canvas.inlineStyles then "" else
+    "  <style>\n"
+    ++ "    .txt { font-family: \"DejaVu Serif\", serif; font-size: 22px; fill: #073642; " ++ halo ++ " }\n"
+    ++ "    .lbl { font-family: \"DejaVu Serif\", serif; font-size: 22px; font-style: italic; fill: #073642; " ++ halo ++ " }\n"
+    ++ "    .callout { font-family: \"DejaVu Sans\", sans-serif; font-size: 18px; fill: #555; " ++ halo ++ " }\n"
+    ++ "  </style>"
+  -- Arrowhead marker for rays. SVG marker units are in stroke widths
+  -- by default; refX positions the tip at the marker's reference point
+  -- so the arrow's apex sits on the ray's end coordinate.
+  let arrowDefs :=
+    "  <defs>\n"
+    ++ "    <marker id=\"arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n"
+    ++ "      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"black\" />\n"
+    ++ "    </marker>\n"
+    ++ "  </defs>"
   let bgLines := if canvas.background = "none" then [] else
     [s!"  <rect width=\"100%\" height=\"100%\" fill=\"{canvas.background}\" />"]
-  String.intercalate "\n" ([header] ++ bgLines ++ shapeLines ++ annLines ++ ["</svg>"])
+  -- Drop the empty styleBlock when inlineStyles is false so the
+  -- output doesn't end up with a stray blank line at the top.
+  let topMatter := if styleBlock.isEmpty then [header, arrowDefs] else [header, styleBlock, arrowDefs]
+  String.intercalate "\n" (topMatter ++ bgLines ++ shapeLines ++ annLines ++ ["</svg>"])
 
 
 /-! ## Plugin registration -/

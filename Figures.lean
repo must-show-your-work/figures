@@ -71,8 +71,11 @@ inductive Style
 deriving Repr, Inhabited
 
 inductive Annotation
-  /-- Place a text label near `target`. -/
-  | label (target : Name) (text : String)
+  /-- Place a text label near `target`. The optional `offset` is the
+  pre-computed displacement from `target`'s anchor; when present, the
+  backend uses it verbatim and skips its own placement heuristic.
+  When `none`, the backend applies a default standoff. -/
+  | label (target : Name) (text : String) (offset : Option Pos2 := none)
   /-- Apply a visual style to `target`. -/
   | highlight (target : Name) (style : Style)
   /-- Draw an angle-mark arc at the angle `(a, vertex, c)` (vertex
@@ -90,6 +93,10 @@ this is `Pos2`. -/
 inductive Shape (P : Type)
   | point   (id : Name) (pos : P)                          (style : Style := .default)
   | segment (id : Name) (a b : P)                          (style : Style := .default)
+  /-- A ray starts at `a`, passes through `b`, and extends past `b`
+  with an arrowhead. Backends draw the visible portion from `a` to
+  past `b` (the "open" end). -/
+  | ray     (id : Name) (a b : P)                          (style : Style := .default)
   /-- A line is defined by two reference points; backends extend
   through the canvas at render time. Vector form (point + direction)
   is a future addition. -/
