@@ -55,7 +55,6 @@ def run (g : ConstraintGraph) (decomp : RigidityDecomposition)
   let mut nonsyntheticCount : Nat := 0
   for jid in order do
     if g.joints[jid]!.synthetic then continue
-    -- Canonical fallback position based on visit order.
     let candidate := canonicalPos nonsyntheticCount g.joints.size canvasW canvasH
     nonsyntheticCount := nonsyntheticCount + 1
     let ctx : DoFContext :=
@@ -63,6 +62,28 @@ def run (g : ConstraintGraph) (decomp : RigidityDecomposition)
         candidate := some candidate, canvasW, canvasH }
     let chosen ← Figures.Rigidity.AntiRegularity.chooseFor ctx
     placed := placed.push (jid, chosen.getD candidate)
+  -- Refinement pass: re-apply rules with the FULL placed set so rules
+  -- like `betweenPlacement` (which need both endpoints already placed)
+  -- can now refine joints that originally landed at canonical fallbacks
+  -- because their endpoint dependencies were placed later.
+  for _ in [0:2] do
+    for jid in order do
+      if g.joints[jid]!.synthetic then continue
+      let currentPos := placed.findSome? fun (i, p) =>
+        if i == jid then some p else none
+      let candidate := currentPos.getD (canvasW / 2, canvasH / 2)
+      -- placedExcept omits this joint so a rule sees "everyone else"
+      -- and can recompute this joint's position.
+      let placedExcept := placed.filter (·.1 != jid)
+      let ctx : DoFContext :=
+        { graph := g, placed := placedExcept, joint := jid,
+          candidate := some candidate, canvasW, canvasH }
+      let chosen ← Figures.Rigidity.AntiRegularity.chooseFor ctx
+      match chosen with
+      | some newPos =>
+        placed := placed.map fun (i, p) =>
+          if i == jid then (i, newPos) else (i, p)
+      | none => pure ()
   -- Synthetic joints: place at the centroid of their incident edges'
   -- placed vertices. If isolated, drop to canvas center.
   for jid in order do
