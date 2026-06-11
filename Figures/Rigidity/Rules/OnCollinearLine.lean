@@ -37,20 +37,28 @@ private def findCollinearGroup (ctx : DoFContext) :
     | _ => pure ()
   return none
 
+/-- Parametric position of `p` projected onto the line through p0→p1.
+0 = at p0, 1 = at p1, > 1 beyond p1, < 0 beyond p0. -/
+private def projectT (p0 p1 p : Pos2) : Float :=
+  let dx := p1.x - p0.x
+  let dy := p1.y - p0.y
+  let len2 := dx * dx + dy * dy
+  if len2 < 1e-12 then 0.0
+  else ((p.x - p0.x) * dx + (p.y - p0.y) * dy) / len2
+
 @[anti_regularity 130]
 def onCollinearLine : Chooser := fun ctx => do
   let some (allIds, placed) := findCollinearGroup ctx | return none
   let (_, p0) := placed[0]!
   let (_, p1) := placed[1]!
-  -- Determine the candidate's position by its order among unplaced
-  -- members. Use a fraction that lands it beyond the placed segment so
-  -- the figure shows a clearly-collinear configuration.
-  let unplaced : Array Nat := allIds.filter fun id =>
-    !placed.any (·.1 == id)
-  let idx := unplaced.findIdx? (· == ctx.joint) |>.getD 0
-  -- Spread unplaced points at fractions 1.3, 1.6, 1.9, … of the segment
-  -- so they cluster on the line beyond p1, distinct from one another.
-  let t : Float := 1.3 + 0.3 * idx.toFloat
+  -- Compute the maximum `t` of any already-placed member of this
+  -- collinear group (after projecting their positions onto the p0→p1
+  -- line). The candidate goes 0.3 beyond that.
+  let mut maxT : Float := 1.0
+  for (_, p) in placed do
+    let t := projectT p0 p1 p
+    if t > maxT then maxT := t
+  let t := maxT + 0.3
   return some (p0.x + (p1.x - p0.x) * t, p0.y + (p1.y - p0.y) * t)
 
 end Figures.Rigidity.Rules
