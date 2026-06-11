@@ -73,18 +73,17 @@ private def allNames (xs : List ConstraintExpr) : Option (Array String) := Id.ru
     out := out.push n
   return some out
 
-/-- Add an `on line through (b, c)` incidence: P-B and P-C edges. The
-line's anchor joint may or may not exist as a named joint — if there
-was a corresponding `construct L := line_through B C` earlier, we
-already have edges (L-B) and (L-C). For incidence we connect P to the
-line's endpoints directly. -/
+/-- Add an `on line through (b, c)` incidence: P-B and P-C edges plus
+an `onLineThrough` annotation so the OnLine-placement rule fires and
+puts P on the line at render time (not just connected by springs). -/
 private def addLineIncidence (g : ConstraintGraph) (p b c : String) :
     ConstraintGraph :=
   let (j0, pid) := ensureJoint g.joints p
   let (j1, bid) := ensureJoint j0 b
   let (j2, cid) := ensureJoint j1 c
   let edges := addEdge (addEdge g.edges pid bid) pid cid
-  { g with joints := j2, edges }
+  { g with joints := j2, edges,
+           annotations := g.annotations.push (.onLineThrough pid bid cid) }
 
 /-- Translate a `.construct name := expr` stmt to a rigid edge (when
 the expr names a known shape) plus, if not already present, the
