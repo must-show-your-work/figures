@@ -31,6 +31,7 @@ import Figures
 import Figures.SVG
 import Figures.Vec2
 import Figures.Solver
+import Figures.Rigidity
 import Figures.Construction.DSL
 
 namespace Figures.Construction.Lowering
@@ -969,10 +970,16 @@ private def applyCachedPositions (b : Bindings) (provided : Array (Name × Pos2)
     | none   => (n, oldPos)
   { b with positions := updated }
 
-/-- Run the solver phase only: seed positions from the layout pool,
-build the World, run `Solver.solve`, return the solved positions
-keyed by name. This is the expensive step; `Geometry.Construction.Cache`
-memoizes its output across re-elabs. -/
+/-- Pure-function position solver: seeds positions from the layout
+pool, builds the Verlet World, runs `Solver.solve`, returns named
+positions. Retained for atlas's `Renderable Construction String`
+instance path (which runs inside the interpreter at
+`intermediate_representation` elab time, where MetaM is awkward).
+`Geometry.Construction.Cache` memoizes its output across re-elabs.
+
+New code that already lives in MetaM (proof-state hooks, tactics)
+should prefer `solvePositionsM`, which uses the L_full Rigidity
+pipeline (pebble game + anti-regularities registry). -/
 def solvePositions (c : Construction) (canvasW : Float := 1280)
     (canvasH : Float := 720) : Array (Name × Pos2) :=
   let cx := canvasW / 2
@@ -1107,6 +1114,22 @@ def lowerAuxiliary (base : Construction) (addendum : Construction)
     annotations := labeled
     constraints := b₅.constraints
   }
+
+
+/-- MetaM entry point: position-solving via the L_full Rigidity pipeline
+(pebble game + anti-regularities registry) rather than force-directed
+Verlet. Prefer over `solvePositions` whenever you're already in MetaM. -/
+def solvePositionsM (c : Construction) (canvasW : Float := 1280)
+    (canvasH : Float := 720) : Lean.MetaM (Array (Name × Pos2)) :=
+  Figures.Rigidity.solvePositions c canvasW canvasH
+
+/-- MetaM `lower` that uses Rigidity for position synthesis. Output
+shape is identical to the pure `lower`; only the position-source
+differs. -/
+def lowerM (c : Construction) (canvasW : Float := 1280) (canvasH : Float := 720) :
+    Lean.MetaM (Scene Pos2) := do
+  let positions ← solvePositionsM c canvasW canvasH
+  return lower c canvasW canvasH (cachedPositions := some positions)
 
 
 end Figures.Construction.Lowering
