@@ -12,3 +12,5 @@ import Figures.Rigidity.Rules.AvoidMidpoint
 import Figures.Rigidity.Rules.AvoidEquilateral
 import Figures.Rigidity.Rules.Between
 import Figures.Rigidity.Rules.OnLine
+import Figures.Rigidity.Rules.Equal
+import Figures.Rigidity.Rules.AvoidIsoceles

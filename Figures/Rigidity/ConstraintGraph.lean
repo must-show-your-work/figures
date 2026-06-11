@@ -177,6 +177,10 @@ private def applyAssert (g : ConstraintGraph) (claim : ConstraintExpr) :
     let edges := addEdge (addEdge g.edges pid aid) pid bid
     { g with joints := j2, edges,
              annotations := g.annotations.push (.onSegment pid aid bid) }
+  | some ("equal", [.name a, .name b]) =>
+    let (j0, aid) := ensureJoint g.joints a
+    let (j1, bid) := ensureJoint j0 b
+    { g with joints := j1, annotations := g.annotations.push (.equal aid bid) }
   | some ("focus", [.name n]) =>
     let (j', id) := ensureJoint g.joints n
     { g with joints := j', annotations := g.annotations.push (.focus id) }

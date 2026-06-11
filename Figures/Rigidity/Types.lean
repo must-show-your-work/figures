@@ -55,6 +55,10 @@ inductive Annotation where
   | onSegment     : Nat → Nat → Nat → Annotation
   | focus         : Nat → Annotation
   | hidden        : Array Nat → Annotation
+  /-- Two joints are asserted to be the same point — synthesizer places
+  them at the same position. Used when the proof state contains an
+  `A = B` hypothesis between two Point fvars. -/
+  | equal         : Nat → Nat → Annotation
   deriving Repr, Inhabited
 
 /-- Input to the pebble-game rigidity analysis. -/
