@@ -970,6 +970,60 @@ private def applyCachedPositions (b : Bindings) (provided : Array (Name × Pos2)
     | none   => (n, oldPos)
   { b with positions := updated }
 
+/-- Extract `(a, b)` pairs of point names that have a visible segment /
+ray / line_through construct connecting them. Used by
+`addCollinearDashes` to decide whether a collinear group already has
+visible line evidence. -/
+private def coveredPointPairs (stmts : Array Stmt) : Array (String × String) :=
+  stmts.filterMap fun s => match s with
+    | .construct _ (.app "segment" [.name a, .name b])
+    | .construct _ (.app "ray" [.name a, .name b])
+    | .construct _ (.app "line_through" [.name a, .name b]) => some (a, b)
+    | _ => none
+
+/-- For each collinear assert whose points aren't already connected by
+a visible shape, emit a dashed `.line` between the two outermost
+collinear points. -/
+private def addCollinearDashes (stmts : Array Stmt) (shapes : Array (Shape Pos2)) :
+    Array (Shape Pos2) := Id.run do
+  let covered := coveredPointPairs stmts
+  let nameToPos : Array (String × Pos2) := shapes.filterMap fun shape =>
+    match shape with
+    | .point id pos _ => some (id, pos)
+    | _ => none
+  let mut newShapes := shapes
+  let mut idx : Nat := 0
+  for s in stmts do
+    match s with
+    | .assert (.app "collinear" args) _ =>
+      let names : Array String := args.toArray.filterMap fun
+        | .name n => some n
+        | _ => none
+      if names.size < 2 then continue
+      -- Coverage: does any visible construct connect 2 points from this group?
+      let isCovered := covered.any fun (a, b) => names.contains a && names.contains b
+      if isCovered then continue
+      -- Resolve positions; skip group if fewer than 2 known.
+      let positions : Array Pos2 := names.filterMap fun n =>
+        nameToPos.findSome? fun (id, p) => if id == n then some p else none
+      if positions.size < 2 then continue
+      -- Pick the two outermost (largest pairwise distance).
+      let mut bestDist : Float := -1.0
+      let mut bestPair : Pos2 × Pos2 := (positions[0]!, positions[0]!)
+      for i in [0:positions.size] do
+        for j in [i+1:positions.size] do
+          let pi := positions[i]!
+          let pj := positions[j]!
+          let d : Float := ((pj.x - pi.x) ^ 2.0 + (pj.y - pi.y) ^ 2.0).sqrt
+          if d > bestDist then
+            bestDist := d
+            bestPair := (pi, pj)
+      let (p0, p1) := bestPair
+      newShapes := newShapes.push (.line s!"collinear_dash_{idx}" p0 p1 .dashed)
+      idx := idx + 1
+    | _ => pure ()
+  return newShapes
+
 /-- Pure-function position solver: seeds positions from the layout
 pool, builds the Verlet World, runs `Solver.solve`, returns named
 positions. Retained for atlas's `Renderable Construction String`
@@ -1027,7 +1081,13 @@ def lower (c : Construction) (canvasW : Float := 1280) (canvasH : Float := 720)
   let b₄ := stmts.foldl (init := b₃) fun acc s => match s with
     | .construct name expr => applyConstruct acc .default name expr
     | _ => acc
-  let fitted := fitToCanvas b₄.shapes canvasW canvasH
+  -- Dashed-line pass: for each `assert collinear A B …` whose points
+  -- aren't already covered by an explicit segment/ray/line_through
+  -- construct, emit a dashed `.line` connecting the two outermost
+  -- collinear points. Surfaces the asserted collinearity even when no
+  -- shape was constructed for it.
+  let shapesWithDashes := addCollinearDashes stmts b₄.shapes
+  let fitted := fitToCanvas shapesWithDashes canvasW canvasH
   let labeled := solveLabels canvasW canvasH fitted b₄.annotations
   {
     shapes      := fitted
