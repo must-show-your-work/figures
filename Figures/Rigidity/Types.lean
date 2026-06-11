@@ -59,6 +59,11 @@ inductive Annotation where
   them at the same position. Used when the proof state contains an
   `A = B` hypothesis between two Point fvars. -/
   | equal         : Nat → Nat → Annotation
+  /-- A set of joints is asserted collinear — they all share a single
+  line. Synthesizer places them on a common line; merging across
+  multiple `collinear` annotations sharing ≥ 2 joints happens at graph
+  build time. -/
+  | collinear     : Array Nat → Annotation
   deriving Repr, Inhabited
 
 /-- Input to the pebble-game rigidity analysis. -/

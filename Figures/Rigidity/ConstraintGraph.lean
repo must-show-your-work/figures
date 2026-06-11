@@ -116,16 +116,27 @@ private def applyAssert (g : ConstraintGraph) (claim : ConstraintExpr) :
     | none => g
     | some names => Id.run do
       let mut joints := g.joints
-      let mut ids : Array Nat := #[]
+      let mut newIds : Array Nat := #[]
       for n in names do
         let (j', id) := ensureJoint joints n
         joints := j'
-        ids := ids.push id
-      let mut edges := g.edges
-      for i in [0:ids.size] do
-        for j in [i+1:ids.size] do
-          edges := addEdge edges ids[i]! ids[j]!
-      return { g with joints, edges }
+        newIds := newIds.push id
+      -- Merge with any existing collinear annotation sharing ≥ 2 joints
+      -- (two points determine the line; sharing two means same line).
+      let mut merged : Array Nat := newIds
+      let mut annsKept : Array Annotation := #[]
+      for ann in g.annotations do
+        match ann with
+        | .collinear existing =>
+          let shared := existing.filter (fun e => merged.contains e)
+          if shared.size ≥ 2 then
+            for e in existing do
+              if !merged.contains e then merged := merged.push e
+          else
+            annsKept := annsKept.push ann
+        | _ => annsKept := annsKept.push ann
+      annsKept := annsKept.push (.collinear merged)
+      return { g with joints, annotations := annsKept }
   | some ("incident", [.name p, .name lineName]) =>
     -- The line name is either a "L_b_c" synthetic anchor (from
     -- proof-state matchers) or a user-supplied construct name. Strip
