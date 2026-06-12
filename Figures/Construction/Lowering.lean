@@ -973,12 +973,19 @@ private def applyCachedPositions (b : Bindings) (provided : Array (Name × Pos2)
 /-- Extract `(a, b)` pairs of point names that have a visible segment /
 ray / line_through construct connecting them. Used by
 `addCollinearDashes` to decide whether a collinear group already has
-visible line evidence. -/
+visible line evidence. Skips constructs whose name appears in any
+`assert hidden …` so the dashed line gets drawn when the only
+"covering" shape is hidden. -/
 private def coveredPointPairs (stmts : Array Stmt) : Array (String × String) :=
+  let hidden : List Name := (stmts.toList.flatMap fun s => match s with
+    | .assert (.app "hidden" args) _ =>
+      args.filterMap (fun | .name n => some n | _ => none)
+    | _ => [])
   stmts.filterMap fun s => match s with
-    | .construct _ (.app "segment" [.name a, .name b])
-    | .construct _ (.app "ray" [.name a, .name b])
-    | .construct _ (.app "line_through" [.name a, .name b]) => some (a, b)
+    | .construct name (.app "segment" [.name a, .name b])
+    | .construct name (.app "ray" [.name a, .name b])
+    | .construct name (.app "line_through" [.name a, .name b]) =>
+      if hidden.contains name then none else some (a, b)
     | _ => none
 
 /-- For each collinear assert whose points aren't already connected by
@@ -1081,12 +1088,23 @@ def lower (c : Construction) (canvasW : Float := 1280) (canvasH : Float := 720)
   let b₄ := stmts.foldl (init := b₃) fun acc s => match s with
     | .construct name expr => applyConstruct acc .default name expr
     | _ => acc
+  -- Drop construct-emitted line/segment/ray/circle shapes whose names
+  -- appear in `assert hidden …`. Used by classifiers (e.g.
+  -- matchOnLineThrough) that need the construct as a constraint
+  -- anchor but don't want it rendered.
+  let hidden := hiddenNames stmts
+  let visibleShapes := b₄.shapes.filter fun sh => match sh with
+    | .line id _ _ _
+    | .segment id _ _ _
+    | .ray id _ _ _
+    | .circle id _ _ _ => !hidden.contains id
+    | _ => true
   -- Dashed-line pass: for each `assert collinear A B …` whose points
   -- aren't already covered by an explicit segment/ray/line_through
   -- construct, emit a dashed `.line` connecting the two outermost
   -- collinear points. Surfaces the asserted collinearity even when no
   -- shape was constructed for it.
-  let shapesWithDashes := addCollinearDashes stmts b₄.shapes
+  let shapesWithDashes := addCollinearDashes stmts visibleShapes
   let fitted := fitToCanvas shapesWithDashes canvasW canvasH
   let labeled := solveLabels canvasW canvasH fitted b₄.annotations
   {
