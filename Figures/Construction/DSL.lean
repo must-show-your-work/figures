@@ -52,4 +52,17 @@ def printStmt : Stmt → String
 def printConstruction (c : Construction) : String :=
   String.intercalate "\n" (c.stmts.toList.map printStmt)
 
+/-- Sentinel stmt: signals "use proof-state inference for this figure."
+A `construction { infer }` block lowers to a `Construction` containing
+just this stmt. Downstream dispatchers detect it and route to the
+proof-state path instead of rendering the DSL literally. -/
+def inferMarker : Stmt :=
+  .assert (.app "__infer__" []) "use proof-state inference"
+
+/-- Does this construction opt into proof-state inference? -/
+def Construction.isInfer (c : Construction) : Bool :=
+  c.stmts.any fun s => match s with
+    | .assert (.app "__infer__" _) _ => true
+    | _ => false
+
 end Figures.Construction.DSL

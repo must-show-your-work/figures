@@ -36,6 +36,7 @@ declare_syntax_cat constructionStmt
 -- `rawIdent` (not `ident`) for head positions so keywords reserved in
 -- consumer namespaces (like giyf's `distinct` and `collinear`) still
 -- parse as construction heads here.
+syntax "infer"                                           : constructionStmt
 syntax "exists " ident+ " : " ident                      : constructionStmt
 syntax "assert " rawIdent constrArg*                     : constructionStmt
 syntax "assert " "¬" rawIdent constrArg*                 : constructionStmt
@@ -58,6 +59,8 @@ private def argsListExpr (args : Array (TSyntax `constrArg)) : MacroM (TSyntax `
 
 private def stmtToTerm (s : TSyntax `constructionStmt) : MacroM (TSyntax `term) :=
   match s with
+  | `(constructionStmt| infer) =>
+    `(Figures.Construction.DSL.inferMarker)
   | `(constructionStmt| exists $names:ident* : $sort:ident) => do
     let nameStrs := names.map (fun n => Syntax.mkStrLit n.getId.toString)
     let sortStr  := Syntax.mkStrLit sort.getId.toString
