@@ -195,6 +195,29 @@ private def applyAssert (g : ConstraintGraph) (claim : ConstraintExpr) :
   | some ("focus", [.name n]) =>
     let (j', id) := ensureJoint g.joints n
     { g with joints := j', annotations := g.annotations.push (.focus id) }
+  | some ("off", [.name p, .name lineName]) =>
+    -- "P is off L" means P is not on the line L. Resolve L's two
+    -- incident edge endpoints (the line's anchors) and emit a
+    -- noncollinear (p, anchor0, anchor1) annotation. The line must
+    -- already exist in the graph as a joint with ≥ 2 incident edges
+    -- — typically a `line_through`, `ray`, or `segment` construct
+    -- emitted before this assert.
+    let (j', pid) := ensureJoint g.joints p
+    let lineJoint? : Option Nat :=
+      j'.findIdx? (fun jt => jt.name == lineName)
+    match lineJoint? with
+    | none => g  -- Unknown line name; ignore.
+    | some lid =>
+      let endpoints : Array Nat := g.edges.filterMap fun e =>
+        if e.a == lid then some e.b
+        else if e.b == lid then some e.a
+        else none
+      if endpoints.size < 2 then g
+      else
+        let a := endpoints[0]!
+        let b := endpoints[1]!
+        { g with joints := j',
+                 annotations := g.annotations.push (.noncollinear pid a b) }
   | some ("hidden", args) =>
     match allNames args with
     | none => g

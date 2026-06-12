@@ -16,3 +16,4 @@ import Figures.Rigidity.Rules.Equal
 import Figures.Rigidity.Rules.AvoidIsoceles
 import Figures.Rigidity.Rules.OnCollinearLine
 import Figures.Rigidity.Rules.CollinearOrder
+import Figures.Rigidity.Rules.OffLineApex
