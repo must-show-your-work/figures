@@ -12,3 +12,4 @@ import Figures.Construction.Matchers.Logical.Iff
 import Figures.Construction.Matchers.Logical.Not
 import Figures.Construction.Matchers.Logical.Pi
 import Figures.Construction.Matchers.Logical.Or
+import Figures.Construction.Matchers.Logical.Exists

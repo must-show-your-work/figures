@@ -42,7 +42,18 @@ def matchPi : Matcher := fun e => do
     let mut acc : Array Stmt := #[]
     for b in binders do
       let bTy ← instantiateMVars (← inferType b)
-      acc := acc ++ (← classify bTy).getD #[]
+      -- For Point/Line binders, the outer `extract` LCtx walk doesn't
+      -- see fvars introduced by the telescope, so emit `exists`
+      -- here directly. Other binder types: classify their type for
+      -- structural matchers (And, ¬, Distinct, etc.).
+      if bTy.isConstOf `Geometry.Theory.Point then
+        let decl ← b.fvarId!.getDecl
+        acc := acc.push (.«exists» #[decl.userName.toString] "Point")
+      else if bTy.isConstOf `Geometry.Theory.Line then
+        let decl ← b.fvarId!.getDecl
+        acc := acc.push (.«exists» #[decl.userName.toString] "Line")
+      else
+        acc := acc ++ (← classify bTy).getD #[]
     acc := acc ++ (← classify conclusion).getD #[]
     return some acc
 
