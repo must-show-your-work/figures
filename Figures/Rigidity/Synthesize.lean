@@ -135,6 +135,35 @@ def run (g : ConstraintGraph) (decomp : RigidityDecomposition)
     placed := placed.push (jid, p)
   -- Unused for now — record for future Henneberg-style construction.
   let _ := decomp
-  return placed
+  -- Degenerate-aspect rotation: when every placed point sits on (or
+  -- very near) a horizontal or vertical line, fitToCanvas has nothing
+  -- to scale into on the short axis and the figure collapses to an
+  -- unreadable thin stripe. Rotate the entire point cloud 30° around
+  -- the canvas center so the bbox becomes a true 2D rectangle.
+  if placed.size < 2 then return placed
+  let mut xMin : Float := placed[0]!.2.x
+  let mut xMax : Float := placed[0]!.2.x
+  let mut yMin : Float := placed[0]!.2.y
+  let mut yMax : Float := placed[0]!.2.y
+  for (_, p) in placed do
+    if p.x < xMin then xMin := p.x
+    if p.x > xMax then xMax := p.x
+    if p.y < yMin then yMin := p.y
+    if p.y > yMax then yMax := p.y
+  let w := xMax - xMin
+  let h := yMax - yMin
+  let needsRotate := (h < w * 0.15) || (w < h * 0.15)
+  if !needsRotate then return placed
+  -- Rotate by 30° about the bbox centroid.
+  let cx := (xMin + xMax) / 2.0
+  let cy := (yMin + yMax) / 2.0
+  let cosT : Float := 0.86602540378  -- cos(30°)
+  let sinT : Float := 0.5            -- sin(30°)
+  return placed.map fun (id, p) =>
+    let dx := p.x - cx
+    let dy := p.y - cy
+    let newX := cx + cosT * dx - sinT * dy
+    let newY := cy + sinT * dx + cosT * dy
+    (id, (newX, newY))
 
 end Figures.Rigidity.Synthesize
