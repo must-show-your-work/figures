@@ -444,7 +444,10 @@ private def fitToCanvas (shapes : Array (Shape Pos2)) (canvasW canvasH : Float) 
       -- outside without the figure crowding the canvas edges.
       let scaleX := if figW < 1e-9 then 1 else canvasW * 0.70 / figW
       let scaleY := if figH < 1e-9 then 1 else canvasH * 0.70 / figH
-      let s := min scaleX scaleY
+      let s :=
+        if figW < 1e-9 then scaleY
+        else if figH < 1e-9 then scaleX
+        else min scaleX scaleY
       let transform (p : Pos2) : Pos2 :=
         (canvasCx + (p.x - bboxCx) * s, canvasCy + (p.y - bboxCy) * s)
       shapes.map fun shape => match shape with

@@ -17,19 +17,24 @@ namespace Figures.Construction.Matchers.Logical
 open Lean Meta
 open Figures.Construction.DSL Figures.Construction.ProofState
 
--- Take ONLY the left branch of a disjunction. Classifying both
--- over-constrains the figure when the branches describe mutually
--- exclusive configurations (e.g. `P on ray A B ∨ P on ray A C` forces
--- P to coincide with A). The right long-term answer is multi-diagram
--- rendering — one figure per branch (task #109). For now show the
--- first branch's geometry.
+-- Emit CONSTRUCTS from both branches (so the figure shows the geometric
+-- setting referenced by either alternative — e.g. ray A B *and* ray A C
+-- when the disjunction is `P on ray A B ∨ P on ray A C`) but ASSERTS only
+-- from the left branch. Classifying both branches' asserts would
+-- over-constrain (forcing P onto both rays). One-figure-per-branch
+-- rendering remains future work (task #109).
 @[proof_state_matcher 5]
 def matchOr : Matcher := fun e => do
   match (← instantiateMVars e).getAppFnArgs with
-  | (``Or, #[l, _r]) =>
+  | (``Or, #[l, r]) =>
     let ls := (← classify l).getD #[]
-    if ls.isEmpty then return none
-    return some ls
+    let rs := (← classify r).getD #[]
+    if ls.isEmpty && rs.isEmpty then return none
+    let rKeep := rs.filter fun s => match s with
+      | .construct _ _ => true
+      | .assert (.app head _) _ => head == "hidden"
+      | _ => false
+    return some (ls ++ rKeep)
   | _ => return none
 
 end Figures.Construction.Matchers.Logical
