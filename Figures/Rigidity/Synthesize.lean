@@ -135,6 +135,42 @@ def run (g : ConstraintGraph) (decomp : RigidityDecomposition)
     placed := placed.push (jid, p)
   -- Unused for now — record for future Henneberg-style construction.
   let _ := decomp
-  return placed
+  -- Honor `focus` annotations: rotate the figure so the focused
+  -- line/segment/ray runs horizontal (positive x direction). Point
+  -- focus (centering on a single joint) is a separate concern and
+  -- conflicts with fitToCanvas's bbox-center translation — skip it
+  -- here. Synthetic line-anchor joints have ≥ 2 incident edges to
+  -- their endpoints; pick the first two and use as the orientation
+  -- reference. Multiple focus annotations: first wins.
+  let focusJoint? := g.annotations.findSome? fun ann => match ann with
+    | .focus id => some id
+    | _ => none
+  let some focusJoint := focusJoint? | return placed
+  if !g.joints[focusJoint]!.synthetic then return placed
+  let endpoints : Array Nat := g.edges.filterMap fun e =>
+    if e.a == focusJoint then some e.b
+    else if e.b == focusJoint then some e.a
+    else none
+  if endpoints.size < 2 then return placed
+  let a := endpoints[0]!
+  let b := endpoints[1]!
+  let posA? := placed.findSome? fun (i, p) => if i == a then some p else none
+  let posB? := placed.findSome? fun (i, p) => if i == b then some p else none
+  let some posA := posA? | return placed
+  let some posB := posB? | return placed
+  let dx := posB.x - posA.x
+  let dy := posB.y - posA.y
+  let len := Float.sqrt (dx * dx + dy * dy)
+  if len < 1e-9 then return placed
+  let cosT := dx / len
+  let sinT := dy / len
+  let mx := (posA.x + posB.x) / 2.0
+  let my := (posA.y + posB.y) / 2.0
+  return placed.map fun (id, p) =>
+    let rx := p.x - mx
+    let ry := p.y - my
+    let newX := mx + cosT * rx + sinT * ry
+    let newY := my + (-sinT) * rx + cosT * ry
+    (id, (newX, newY))
 
 end Figures.Rigidity.Synthesize
