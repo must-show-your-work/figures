@@ -1215,7 +1215,13 @@ def lowerAuxiliary (base : Construction) (addendum : Construction)
 Verlet. Prefer over `solvePositions` whenever you're already in MetaM. -/
 def solvePositionsM (c : Construction) (canvasW : Float := 1280)
     (canvasH : Float := 720) : Lean.MetaM (Array (Name × Pos2)) :=
-  Figures.Rigidity.solvePositions c canvasW canvasH
+  -- Synthesize line-anchor stmts before the Rigidity graph build so
+  -- `incident X L` / `off X L` see L as a joint with ≥ 2 endpoints
+  -- (otherwise the `off` head silently drops because L has no edges).
+  -- autoAnchorLines is idempotent — `Lowering.lower` runs it again
+  -- downstream without adding more anchors.
+  let c' : Construction := { stmts := autoAnchorLines c.stmts }
+  Figures.Rigidity.solvePositions c' canvasW canvasH
 
 /-- MetaM `lower` that uses Rigidity for position synthesis. Output
 shape is identical to the pure `lower`; only the position-source
