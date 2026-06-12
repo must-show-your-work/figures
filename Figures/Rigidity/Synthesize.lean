@@ -42,15 +42,48 @@ private def canonicalPos (i n : Nat) (canvasW canvasH : Float) : Pos2 :=
   let radians := angle * 3.14159265358979 / 180.0
   (cx + r * radians.cos, cy - r * radians.sin)
 
+/-- Build a topological order for joint placement: a joint's position-
+determining dependencies must come before it. A `between a x b`
+annotation marks `x` as depending on `a` and `b`; `onLineThrough p a
+b` / `onSegment / onRay` marks `p` as depending on `a` and `b`. Within
+each topological level, joints are ordered alphabetically by name. -/
+private def topologicalOrder (g : ConstraintGraph) : Array Nat := Id.run do
+  let n := g.joints.size
+  -- Build deps: deps[i] = ids that must be placed before i.
+  let mut deps : Array (Array Nat) := Array.replicate n #[]
+  for ann in g.annotations do
+    match ann with
+    | .between a x b =>
+      deps := deps.set! x ((deps[x]!).push a |>.push b)
+    | .onLineThrough p a b | .onSegment p a b | .onRay p a b =>
+      deps := deps.set! p ((deps[p]!).push a |>.push b)
+    | _ => pure ()
+  -- Iterative topological pass: place every joint whose deps are all
+  -- already placed, then repeat. Alphabetical tiebreak.
+  let alphabetic : Array Nat :=
+    (Array.range n).qsort fun i j => g.joints[i]!.name < g.joints[j]!.name
+  let mut placed : Array Nat := #[]
+  let mut remaining : Array Nat := alphabetic
+  while !remaining.isEmpty do
+    let ready : Array Nat := remaining.filter fun id =>
+      (deps[id]!).all (fun d => placed.contains d)
+    if ready.isEmpty then
+      -- Cycle or unresolvable deps — fall back: append whatever's left
+      -- in alphabetical order.
+      placed := placed ++ remaining
+      remaining := #[]
+    else
+      placed := placed ++ ready
+      remaining := remaining.filter fun id => !ready.contains id
+  return placed
+
 /-- Run synthesis: return a list of (joint id, position) for every
 joint in the graph (synthetic helpers included). -/
 def run (g : ConstraintGraph) (decomp : RigidityDecomposition)
     (canvasW canvasH : Float := 1280) : Lean.MetaM (Array (Nat × Pos2)) := do
-  -- Visit joints in alphabetical order by name so the layout pool
-  -- maps consistently across re-elabs.
-  let order : Array Nat :=
-    (Array.range g.joints.size).qsort fun i j =>
-      g.joints[i]!.name < g.joints[j]!.name
+  -- Topological order so between's endpoints / onLine's anchors are
+  -- placed before joints that depend on them.
+  let order : Array Nat := topologicalOrder g
   let mut placed : Array (Nat × Pos2) := #[]
   let mut nonsyntheticCount : Nat := 0
   for jid in order do
