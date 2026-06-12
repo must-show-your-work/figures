@@ -89,6 +89,11 @@ def avoidCollinear : Chooser := fun ctx => do
       return none
     -- Push perpendicular until we exceed 2× tolerance, giving headroom.
     let pushDist := 2.0 * tolerance - d
+    -- Already past the headroom — don't push backwards. Without this
+    -- guard, a candidate that's noncollinear-asserted AND already far
+    -- from the line gets dragged TOWARD the line (negative pushDist
+    -- inverts the perpendicular direction in `pushPerp`).
+    if pushDist ≤ 0.0 then return none
     return some (pushPerp cand pi pj pushDist)
 
 end Figures.Rigidity.Rules
