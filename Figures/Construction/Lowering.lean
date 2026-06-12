@@ -1188,7 +1188,19 @@ def lowerAuxiliary (base : Construction) (addendum : Construction)
   let b₅ := addendum.stmts.foldl (init := b₄) fun acc s => match s with
     | .construct name expr => applyConstruct acc .default name expr
     | _ => acc
-  let fitted := fitToCanvas b₅.shapes canvasW canvasH
+  -- Parity with `lower`: drop construct-emitted shapes named in
+  -- `assert hidden …` (so `construct L_AB := line_through A B; hidden
+  -- L_AB` doesn't render the line), then add the dashed collinearity
+  -- post-pass so asserted collinear groups still visualize.
+  let hidden := hiddenNames combinedStmts
+  let visibleShapes := b₅.shapes.filter fun sh => match sh with
+    | .line id _ _ _
+    | .segment id _ _ _
+    | .ray id _ _ _
+    | .circle id _ _ _ => !hidden.contains id
+    | _ => true
+  let shapesWithDashes := addCollinearDashes combinedStmts visibleShapes
+  let fitted := fitToCanvas shapesWithDashes canvasW canvasH
   let labeled := solveLabels canvasW canvasH fitted b₅.annotations
   {
     shapes      := fitted
