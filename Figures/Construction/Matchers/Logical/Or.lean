@@ -17,14 +17,12 @@ namespace Figures.Construction.Matchers.Logical
 open Lean Meta
 open Figures.Construction.DSL Figures.Construction.ProofState
 
-@[proof_state_matcher 5]
-def matchOr : Matcher := fun e => do
-  match (← instantiateMVars e).getAppFnArgs with
-  | (``Or, #[l, r]) =>
-    let ls := (← classify l).getD #[]
-    let rs := (← classify r).getD #[]
-    if ls.isEmpty && rs.isEmpty then return none
-    return some (ls ++ rs)
-  | _ => return none
+-- DISABLED: classifying both branches of a disjunction asserts both
+-- sets of constraints simultaneously, which over-constrains the figure
+-- when the branches describe mutually exclusive configurations (e.g.
+-- `P on ray A B ∨ P on ray A C` forces P to coincide with A).
+-- The right answer is multi-diagram rendering (one figure per branch)
+-- — tracked separately. For now matchOr is a no-op.
+def matchOr : Matcher := fun _ => return none
 
 end Figures.Construction.Matchers.Logical
