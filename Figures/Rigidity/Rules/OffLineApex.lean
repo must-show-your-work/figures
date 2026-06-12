@@ -74,8 +74,23 @@ def offLineApex : Chooser := fun ctx => do
   let groupPlaced : Array Pos2 := groupIds.filterMap fun jid =>
     ctx.placed.findSome? fun (i, p) => if i == jid then some p else none
   if groupPlaced.size < 2 then return none
-  let p0 := groupPlaced[0]!
-  let pN := groupPlaced[groupPlaced.size - 1]!
+  -- Find the two extreme group members by max pairwise distance —
+  -- relying on `groupIds[0]` / `groupIds[size-1]` is wrong because
+  -- merge order != position order, so the "endpoints" can be
+  -- arbitrary interior points (e.g. for 3.3.i's merged collinear,
+  -- groupIds is [B, C, D, A] but the visual extremes are A and D).
+  let mut maxDist : Float := 0.0
+  let mut p0 : Pos2 := groupPlaced[0]!
+  let mut pN : Pos2 := groupPlaced[0]!
+  for i in [0:groupPlaced.size] do
+    for j in [i+1:groupPlaced.size] do
+      let pi := groupPlaced[i]!
+      let pj := groupPlaced[j]!
+      let d := Float.sqrt ((pj.x - pi.x) * (pj.x - pi.x) + (pj.y - pi.y) * (pj.y - pi.y))
+      if d > maxDist then
+        maxDist := d
+        p0 := pi
+        pN := pj
   let dx := pN.x - p0.x
   let dy := pN.y - p0.y
   let len := Float.sqrt (dx * dx + dy * dy)
