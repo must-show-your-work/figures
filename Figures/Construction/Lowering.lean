@@ -103,13 +103,14 @@ private def addConstraint (b : Bindings) (c : Constraint) : Bindings :=
   { b with constraints := b.constraints.push c }
 
 /-- Try to realize a `construct name := expr` as a shape. The optional
-`style` overrides the shape's default style (used by `auxillary` to
-render addendum shapes dashed). -/
+`style` overrides the shape's default style. `line_through` is always
+dashed by convention (Greenberg-style construction line); ray /
+segment / circle honor the passed style. -/
 private def applyConstruct (b : Bindings) (style : Style := .default)
     (name : Name) : ConstraintExpr → Bindings
   | .app "line_through" [a, b'] =>
     match lookupArg b a, lookupArg b b' with
-    | some pa, some pb => addShape b (.line name pa pb style)
+    | some pa, some pb => addShape b (.line name pa pb .dashed)
     | _, _ => addConstraint b ⟨.app "line_through" [a, b'], s!"construct {name} (unresolved)"⟩
   | .app "segment" [a, b'] =>
     match lookupArg b a, lookupArg b b' with
