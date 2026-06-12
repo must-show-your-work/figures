@@ -20,6 +20,14 @@ private def dist (a b : Pos2) : Float :=
 @[anti_regularity 100]
 def avoidEquilateral : Chooser := fun ctx => do
   let some cand := ctx.candidate | return none
+  -- Skip if the candidate is asserted incident on a Line variable —
+  -- its position is already constrained by the line; perturbing for
+  -- aesthetics would pull it off the line. Same idea as AvoidCollinear's
+  -- between-asserted check.
+  let onLine := ctx.graph.annotations.any fun ann => match ann with
+    | .onLineFvar p _ => p == ctx.joint
+    | _ => false
+  if onLine then return none
   -- For each pair of placed joints (pi, pj), check if (cand, pi, pj)
   -- would be near-equilateral.
   for (_, pi) in ctx.placed do

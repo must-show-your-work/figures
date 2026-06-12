@@ -53,6 +53,12 @@ inductive Annotation where
   | onLineThrough : Nat → Nat → Nat → Annotation
   | onRay         : Nat → Nat → Nat → Annotation
   | onSegment     : Nat → Nat → Nat → Annotation
+  /-- Point is asserted incident on a Line variable (not a `line_through`
+  constructor). The Line joint's position is irrelevant — the line is
+  rendered through its incidence anchors — but rules like
+  AvoidEquilateral / AvoidIsoceles should leave the point alone since
+  its position is already constrained. -/
+  | onLineFvar    : Nat → Nat → Annotation
   | focus         : Nat → Annotation
   | hidden        : Array Nat → Annotation
   /-- Two joints are asserted to be the same point — synthesizer places

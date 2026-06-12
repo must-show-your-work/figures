@@ -20,6 +20,12 @@ private def dist2 (a b : Pos2) : Float :=
 @[anti_regularity 90]
 def avoidIsoceles : Chooser := fun ctx => do
   let some cand := ctx.candidate | return none
+  -- Same skip condition as AvoidEquilateral: don't perturb a candidate
+  -- whose position is constrained by line incidence.
+  let onLine := ctx.graph.annotations.any fun ann => match ann with
+    | .onLineFvar p _ => p == ctx.joint
+    | _ => false
+  if onLine then return none
   for (_, pi) in ctx.placed do
     for (_, pj) in ctx.placed do
       let d12 := dist2 pi pj

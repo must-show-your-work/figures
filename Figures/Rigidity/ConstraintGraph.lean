@@ -150,7 +150,8 @@ private def applyAssert (g : ConstraintGraph) (claim : ConstraintExpr) :
     else
       let (j0, pid) := ensureJoint g.joints p
       let (j1, lid) := ensureJoint j0 lineName
-      { g with joints := j1, edges := addEdge g.edges pid lid }
+      { g with joints := j1, edges := addEdge g.edges pid lid,
+               annotations := g.annotations.push (.onLineFvar pid lid) }
   | some ("noncollinear", [.name a, .name b, .name c]) =>
     let (j0, aid) := ensureJoint g.joints a
     let (j1, bid) := ensureJoint j0 b
