@@ -67,11 +67,10 @@ def offLineApex : Chooser := fun ctx => do
   if !(collinearGroupsContaining ctx.graph id).isEmpty then return none
   let groups := allCollinearGroups ctx.graph
   if groups.isEmpty then return none
-  let some (anchorId, groupIds) := connectedGroupMember ctx.graph id groups
+  let some (_, groupIds) := connectedGroupMember ctx.graph id groups
     | return none
-  let some anchorPos := ctx.posOf anchorId | return none
   -- Collect placed positions for the group members, to determine line
-  -- direction. Need ≥ 2 to define a line.
+  -- direction and midpoint. Need ≥ 2 to define a line.
   let groupPlaced : Array Pos2 := groupIds.filterMap fun jid =>
     ctx.placed.findSome? fun (i, p) => if i == jid then some p else none
   if groupPlaced.size < 2 then return none
@@ -87,6 +86,11 @@ def offLineApex : Chooser := fun ctx => do
   -- Bias above the line: canvas y grows downward, so prefer perpY < 0.
   let sign := if perpY < 0.0 then 1.0 else -1.0
   let offset := len * 0.4
-  return some (anchorPos.x + sign * perpX * offset, anchorPos.y + sign * perpY * offset)
+  -- Anchor the offset at the line MIDPOINT, not the connected joint —
+  -- otherwise the candidate stacks directly above whatever group member
+  -- happened to be its edge-neighbor, throwing visual balance off.
+  let midX := (p0.x + pN.x) / 2.0
+  let midY := (p0.y + pN.y) / 2.0
+  return some (midX + sign * perpX * offset, midY + sign * perpY * offset)
 
 end Figures.Rigidity.Rules

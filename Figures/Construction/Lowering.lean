@@ -1186,7 +1186,7 @@ def lowerAuxiliary (base : Construction) (addendum : Construction)
     | .construct name expr => applyConstruct acc .default name expr
     | _ => acc
   let b₅ := addendum.stmts.foldl (init := b₄) fun acc s => match s with
-    | .construct name expr => applyConstruct acc .dashed name expr
+    | .construct name expr => applyConstruct acc .default name expr
     | _ => acc
   let fitted := fitToCanvas b₅.shapes canvasW canvasH
   let labeled := solveLabels canvasW canvasH fitted b₅.annotations
