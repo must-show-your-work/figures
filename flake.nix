@@ -29,21 +29,8 @@
           inherit pkgs system;
           name = "figures lean shell";
 
-          # Bump when ./lean-toolchain changes: refetch with
-          #   nix store prefetch-file --hash-type sha256 <url>
-          manifest = {
-            tag = "v4.30.0-rc2";
-            toolchain = {
-              x86_64-linux = {
-                url  = "https://github.com/leanprover/lean4/releases/download/v4.30.0-rc2/lean-4.30.0-rc2-linux.tar.zst";
-                hash = "sha256-W1FiXxVPChOze9iS8dlfeen9W58NCVtBJiFe4ryNvoY=";
-              };
-              aarch64-darwin = {
-                url  = "https://github.com/leanprover/lean4/releases/download/v4.30.0-rc2/lean-4.30.0-rc2-darwin_aarch64.tar.zst";
-                hash = "sha256-aiPSYkH9eLzD0cJL6XNBv+P0Y18ub+q8u1hjA1KQqxs=";
-              };
-            };
-          };
+          # Toolchain manifest inherited from shed/lib/lean-toolchain-manifest.nix
+          # (workspace-wide pin).
 
           extraShellHook = ''
             export LIBRARY_PATH="${pkgs.lib.makeLibraryPath linker_deps}''${LIBRARY_PATH:+:$LIBRARY_PATH}"
