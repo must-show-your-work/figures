@@ -165,6 +165,32 @@ private def renderShape (canvas : Canvas) : Shape Pos2 → String
     -- silently drop text in some libresvg configurations.
     let escaped := content.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
     s!"  <text id=\"{id}\" class=\"txt\" x=\"{fmt pos.x}\" y=\"{fmt pos.y}\">{escaped}</text>"
+  | .arrow id a b bend head style =>
+    -- Straight if bend ≈ 0; otherwise a quadratic bezier whose
+    -- control point sits at the chord midpoint displaced perpendicular
+    -- to the chord by `bend` user-units.
+    let s := applyStyle style
+    let markerId := match head with
+      | .standard => "arrow"
+      | .hooked   => "arrowHooked"
+      | .double   => "arrowDouble"
+      | .iso      => "arrowIso"
+      | .none     => ""
+    let markerAttr := if markerId.isEmpty then ""
+                      else s!" marker-end=\"url(#{markerId})\""
+    if bend.abs < 0.001 then
+      s!"  <line id=\"{id}\" x1=\"{fmt a.x}\" y1=\"{fmt a.y}\" x2=\"{fmt b.x}\" y2=\"{fmt b.y}\"{styleAttrs s}{markerAttr} />"
+    else
+      let mx := (a.x + b.x) / 2
+      let my := (a.y + b.y) / 2
+      let dx := b.x - a.x
+      let dy := b.y - a.y
+      let len := (dx * dx + dy * dy).sqrt
+      let nx := -dy / len
+      let ny := dx / len
+      let cx := mx + nx * bend
+      let cy := my + ny * bend
+      s!"  <path id=\"{id}\" d=\"M {fmt a.x} {fmt a.y} Q {fmt cx} {fmt cy} {fmt b.x} {fmt b.y}\" fill=\"none\"{styleAttrs s}{markerAttr} />"
 
 
 /-! ## Annotations
@@ -195,6 +221,7 @@ private def shapeAnchor (canvas : Canvas) : Shape Pos2 → Pos2
     (p.x + nudgeX, p.y)
   | .circle _ center _ _ => center
   | .text _ pos _        => pos
+  | .arrow _ a b _ _ _   => ((a.x + b.x) / 2, (a.y + b.y) / 2)
 
 private def shapeId : Shape Pos2 → Name
   | .point id _ _      => id
@@ -203,6 +230,7 @@ private def shapeId : Shape Pos2 → Name
   | .line id _ _ _     => id
   | .circle id _ _ _   => id
   | .text id _ _       => id
+  | .arrow id _ _ _ _ _ => id
 
 private def anchorOf (canvas : Canvas) (shapes : Array (Shape Pos2)) (target : Name) : Option Pos2 :=
   (shapes.find? (fun s => shapeId s == target)).map (shapeAnchor canvas)
@@ -296,12 +324,26 @@ def render (s : Scene Pos2) (canvas : Canvas := {}) : String :=
     ++ "    .lbl { font-family: \"DejaVu Serif\", serif; font-size: 22px; font-style: italic; fill: #073642; " ++ halo ++ " }\n"
     ++ "    .callout { font-family: \"DejaVu Sans\", sans-serif; font-size: 18px; fill: #555; " ++ halo ++ " }\n"
     ++ "  </style>"
-  -- Arrowhead marker for rays. SVG marker units are in stroke widths
-  -- by default; refX positions the tip at the marker's reference point
-  -- so the arrow's apex sits on the ray's end coordinate.
+  -- Arrowhead markers. SVG marker units are in stroke widths by default;
+  -- refX positions the tip at the marker's reference point so the
+  -- arrow's apex sits on the line's end coordinate.
+  --   `arrow` — standard filled triangle, used by `ray` and by
+  --             `arrow head := .standard`
+  --   `arrowHooked` — concave/hooked head (mono, `↪`)
+  --   `arrowDouble` — two stacked triangles (epi, `↠`)
+  --   `arrowIso` — triangle with a small `≃` glyph (iso, `≃`)
   let arrowDefs :=
     "  <defs>\n"
     ++ "    <marker id=\"arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n"
+    ++ "      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"currentColor\" />\n"
+    ++ "    </marker>\n"
+    ++ "    <marker id=\"arrowHooked\" viewBox=\"0 0 12 10\" refX=\"11\" refY=\"5\" markerWidth=\"9\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n"
+    ++ "      <path d=\"M 0 0 L 10 5 L 0 10 M 0 5 L 6 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" />\n"
+    ++ "    </marker>\n"
+    ++ "    <marker id=\"arrowDouble\" viewBox=\"0 0 14 10\" refX=\"13\" refY=\"5\" markerWidth=\"9\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n"
+    ++ "      <path d=\"M 0 0 L 8 5 L 0 10 z M 4 0 L 12 5 L 4 10 z\" fill=\"currentColor\" />\n"
+    ++ "    </marker>\n"
+    ++ "    <marker id=\"arrowIso\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"7\" markerHeight=\"7\" orient=\"auto-start-reverse\">\n"
     ++ "      <path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"currentColor\" />\n"
     ++ "    </marker>\n"
     ++ "  </defs>"

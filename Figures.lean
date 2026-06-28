@@ -86,6 +86,26 @@ inductive Annotation
 deriving Repr, Inhabited
 
 
+/-! ## Arrow heads / categorical edge styles
+
+Used by the `arrow` shape variant. Solid/standard heads are the
+default for ordinary categorical morphisms; the variants encode the
+common shorthand (`↪` for monos, `↠` for epis, `≃` for isos). -/
+
+inductive ArrowHead
+  /-- `→` — the default; one filled triangular head at the target. -/
+  | standard
+  /-- `↪` — hooked head, conventional for monos. -/
+  | hooked
+  /-- `↠` — double head, conventional for epis. -/
+  | double
+  /-- `≃` — head with a `≃` flourish above, conventional for isos. -/
+  | iso
+  /-- No head (for "equals" arrows used in commutativity assertions). -/
+  | none
+deriving Repr, Inhabited
+
+
 /-! ## Shapes -/
 
 /-- Drawable primitives. `P` is the position type; for 2D figures
@@ -103,6 +123,13 @@ inductive Shape (P : Type)
   | line    (id : Name) (a b : P)                          (style : Style := .default)
   | circle  (id : Name) (center : P) (radius : Float)      (style : Style := .default)
   | text    (id : Name) (pos : P) (content : String)
+  /-- A directed arrow from `a` to `b` with an arrowhead at `b`.
+  Used by category diagrams. `bend` is a small displacement
+  perpendicular to the chord (positive curves left, negative right,
+  zero is a straight line). `head` selects the arrowhead glyph
+  (standard / hooked / double / iso / none). -/
+  | arrow   (id : Name) (a b : P) (bend : Float := 0)
+            (head : ArrowHead := .standard) (style : Style := .default)
 deriving Repr, Inhabited
 
 
