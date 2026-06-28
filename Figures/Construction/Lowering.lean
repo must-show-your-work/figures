@@ -33,6 +33,7 @@ import Figures.Vec2
 import Figures.Solver
 import Figures.Rigidity
 import Figures.Construction.DSL
+import Figures.Category
 
 namespace Figures.Construction.Lowering
 
@@ -1241,14 +1242,43 @@ open Figures
 open Figures.Construction.DSL
 open Figures.Construction.Lowering
 
+/-- True iff this construction is in `commutative diagram` mode —
+i.e. contains a `mode "commutative diagram"` statement. Geometry-mode
+constructions have no `mode` stmt; absence of the stmt = geometry. -/
+def Construction.isCategoryDiagram (c : Construction) : Bool :=
+  c.stmts.any fun s => match s with
+    | .mode "commutative diagram" => true
+    | _ => false
+
+/-- Mode-aware dispatch from `Construction` to `Scene Pos2`.
+- Geometry-mode (no `mode` stmt): use the Verlet-based geometry
+  lowering above.
+- Category-mode (`commutative diagram`): route to
+  `Figures.Category.Lowering.lower` (square / triangle templates).
+Errors in the category path collapse to an empty Scene with a `text`
+shape carrying the error message; geometry mode never fails (the
+Verlet lowering accepts any input). -/
+def lowerDispatch (c : Construction) : Scene Pos2 :=
+  if c.isCategoryDiagram then
+    match Figures.Category.Diagram.fromConstruction c with
+    | none =>
+      { shapes := #[ .text "err" (40, 40) "category mode marker missing" ] }
+    | some d =>
+      match Figures.Category.Lowering.lower d with
+      | .ok (scene, _) => scene
+      | .error e =>
+        { shapes := #[ .text "err" (40, 40) s!"category lowering: {e}" ] }
+  else
+    lower c
+
 /-- DSL → SVG via the lowering pass. Lets atlas's `direct_rep` accept
 a `Construction` literal directly (instance lookup picks this up by
 type), without callers needing to invoke `lower` themselves. The
 default `Renderable` instance keeps the inline `<style>` block so
 the SVG is standalone (works in the InfoView widget, libresvg,
-direct file-open). -/
+direct file-open). Dispatches on mode — geometry vs category. -/
 instance : Renderable Construction String where
-  render c := Renderable.render (lower c)
+  render c := Renderable.render (lowerDispatch c)
 
 /-- Render a `Construction` to SVG WITHOUT the inline `<style>` block
 and WITHOUT a background fill. For host environments that supply their
@@ -1257,7 +1287,7 @@ theme — paper-cream pane, not the figure's legal-pad yellow default).
 The output still carries the `.txt`, `.lbl`, `.callout` classes so
 the host CSS can target them. -/
 def renderBare (c : Construction) : String :=
-  Figures.SVG.render (lower c) { inlineStyles := false, background := "none" }
+  Figures.SVG.render (lowerDispatch c) { inlineStyles := false, background := "none" }
 
 /-- Render a base + addendum pair the same way `renderBare` renders a
 single construction — no inline `<style>`, no background — so the

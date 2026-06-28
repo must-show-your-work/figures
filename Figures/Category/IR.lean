@@ -12,6 +12,7 @@ type that doesn't pull in any consumer-specific code.
 -/
 
 import Figures
+import Figures.Construction.DSL
 
 namespace Figures.Category
 
@@ -88,5 +89,40 @@ def Diagram.node? (d : Diagram) (name : String) : Option Node :=
 /-- Find an edge by source / target. -/
 def Diagram.edge? (d : Diagram) (source target : String) : Option Edge :=
   d.edges.find? fun e => e.source == source ∧ e.target == target
+
+
+/-! ## Conversion from `Figures.Construction.DSL.Construction`
+
+The DSL parses `construction { commutative diagram; node ...; arrow ...; ... }`
+into a flat `Construction.Stmt` sequence. This function walks that
+sequence and assembles a `Diagram`. Statements that don't belong to
+category-diagram mode are ignored (so a mixed geometry-then-category
+construction would error elsewhere; we only consume the category bits).
+
+Returns `none` if the construction has no `mode "commutative diagram"`
+marker — caller can route to a different processor in that case. -/
+
+def Diagram.fromConstruction (c : Figures.Construction.DSL.Construction) :
+    Option Diagram := Id.run do
+  let hasMode := c.stmts.any fun s => match s with
+    | .mode "commutative diagram" => true
+    | _ => false
+  unless hasMode do return none
+  let mut nodes  : Array Node   := #[]
+  let mut edges  : Array Edge   := #[]
+  let mut cells  : Array Cell   := #[]
+  let mut layout : Option String := none
+  for s in c.stmts do
+    match s with
+    | .node name label =>
+      nodes := nodes.push { name := name, label := .latex label }
+    | .edge src tgt label head =>
+      edges := edges.push { source := src, target := tgt, label := .latex label, head := head }
+    | .commutes paths =>
+      cells := cells.push { paths := paths }
+    | .layoutHint template =>
+      layout := some template
+    | _ => continue
+  return some { nodes := nodes, edges := edges, cells := cells, layout := layout }
 
 end Figures.Category

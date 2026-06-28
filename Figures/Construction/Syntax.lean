@@ -44,6 +44,29 @@ syntax "construct " ident " := " rawIdent constrArg*     : constructionStmt
 syntax "focus " ident                                    : constructionStmt
 syntax "hidden " ident+                                  : constructionStmt
 
+-- Category-diagram mode.
+-- Mode marker; subsequent node/arrow/commutes/layout statements
+-- belong to the category-diagram processor.
+syntax "commutative" "diagram"                           : constructionStmt
+-- Node: `node NAME "<label source>"`. Label is a string literal (raw
+-- LaTeX in V1.5+; plain text in V1).
+syntax "node " ident str                                 : constructionStmt
+-- Arrow: `arrow SRC ARROW TGT "<label>"`. Arrow glyph picks the
+-- head style; → standard, ↪ hooked (mono), ↠ double (epi),
+-- ≃ iso, = (or nothing) for "none".
+syntax "arrow " ident "→" ident str                      : constructionStmt
+syntax "arrow " ident "↪" ident str                      : constructionStmt
+syntax "arrow " ident "↠" ident str                      : constructionStmt
+syntax "arrow " ident "≃" ident str                      : constructionStmt
+-- Commutes: 2+ paths, each path is a comma-separated list of node
+-- idents inside brackets. Renders a ↻ in the centroid of the
+-- referenced nodes.
+syntax "commutes " ("[" ident,+ "]")+                    : constructionStmt
+-- Layout template selection: `as_layout square` / `as_layout triangle` / etc.
+-- Two-token form to avoid colliding with `layout` used as a struct
+-- field name elsewhere in the codebase.
+syntax "as_layout " ident                                : constructionStmt
+
 syntax (name := constructionBlock) "construction" "{" constructionStmt* "}" : term
 
 private def argToExpr (s : TSyntax `constrArg) : MacroM (TSyntax `term) :=
@@ -89,6 +112,40 @@ private def stmtToTerm (s : TSyntax `constructionStmt) : MacroM (TSyntax `term) 
       `(Figures.ConstraintExpr.name $lit))
     `(Figures.Construction.DSL.Stmt.assert
         (Figures.ConstraintExpr.app "hidden" [$nameExprs,*]))
+  -- Category-diagram mode marker.
+  | `(constructionStmt| commutative diagram) =>
+    `(Figures.Construction.DSL.Stmt.mode "commutative diagram")
+  -- Node declaration.
+  | `(constructionStmt| node $name:ident $label:str) => do
+    let nameStr := Syntax.mkStrLit name.getId.toString
+    `(Figures.Construction.DSL.Stmt.node $nameStr $label)
+  -- Edges, one parser arm per arrowhead glyph.
+  | `(constructionStmt| arrow $src:ident → $tgt:ident $label:str) => do
+    let s := Syntax.mkStrLit src.getId.toString
+    let t := Syntax.mkStrLit tgt.getId.toString
+    `(Figures.Construction.DSL.Stmt.edge $s $t $label Figures.ArrowHead.standard)
+  | `(constructionStmt| arrow $src:ident ↪ $tgt:ident $label:str) => do
+    let s := Syntax.mkStrLit src.getId.toString
+    let t := Syntax.mkStrLit tgt.getId.toString
+    `(Figures.Construction.DSL.Stmt.edge $s $t $label Figures.ArrowHead.hooked)
+  | `(constructionStmt| arrow $src:ident ↠ $tgt:ident $label:str) => do
+    let s := Syntax.mkStrLit src.getId.toString
+    let t := Syntax.mkStrLit tgt.getId.toString
+    `(Figures.Construction.DSL.Stmt.edge $s $t $label Figures.ArrowHead.double)
+  | `(constructionStmt| arrow $src:ident ≃ $tgt:ident $label:str) => do
+    let s := Syntax.mkStrLit src.getId.toString
+    let t := Syntax.mkStrLit tgt.getId.toString
+    `(Figures.Construction.DSL.Stmt.edge $s $t $label Figures.ArrowHead.iso)
+  -- Commutes: 2+ paths, each a comma-separated ident list in brackets.
+  | `(constructionStmt| commutes $[ [ $paths,* ] ]*) => do
+    let pathExprs ← paths.mapM fun (p : Syntax.TSepArray `ident ",") => do
+      let nameStrs := p.getElems.map (fun n => Syntax.mkStrLit n.getId.toString)
+      `(#[$nameStrs,*])
+    `(Figures.Construction.DSL.Stmt.commutes #[$pathExprs,*])
+  -- Layout pin.
+  | `(constructionStmt| as_layout $template:ident) => do
+    let tStr := Syntax.mkStrLit template.getId.toString
+    `(Figures.Construction.DSL.Stmt.layoutHint $tStr)
   | _ => Macro.throwUnsupported
 
 macro_rules

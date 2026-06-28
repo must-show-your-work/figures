@@ -12,12 +12,15 @@ Run with:
 
 import Figures
 import Figures.Category
+import Figures.Construction.DSL
+import Figures.Construction.Syntax
 import Figures.SVG
 
 namespace Figures.Category.Examples
 
 open Figures
 open Figures.Category
+open Figures.Construction.DSL
 
 /-! ## Vakil 1.1.21 — Naturality square for α : F ⟹ G
 
@@ -55,6 +58,33 @@ def naturalitySquare : Diagram := {
 /-- Lower + render and return the SVG string for the naturality square. -/
 def naturalitySquareSvg : Except String String := do
   let (scene, (w, h)) ← Lowering.lower naturalitySquare
+  let canvas : SVG.Canvas := { width := w, height := h }
+  return SVG.render scene canvas
+
+
+/-! ## Same diagram via the DSL surface
+
+Exercises the parser + Stmt → Diagram conversion + lowering + SVG.
+Should produce the same SVG as `naturalitySquareSvg` above. -/
+
+def naturalitySquareViaDsl : Construction := construction {
+  commutative diagram
+  as_layout square
+  node FA "F(A)"
+  node FA' "F(A')"
+  node GA "G(A)"
+  node GA' "G(A')"
+  arrow FA → FA' "F(f)"
+  arrow GA → GA' "G(f)"
+  arrow FA → GA "α_A"
+  arrow FA' → GA' "α_A'"
+  commutes [FA, FA', GA'] [FA, GA, GA']
+}
+
+def naturalitySquareDslSvg : Except String String := do
+  let some d := Diagram.fromConstruction naturalitySquareViaDsl
+    | throw "construction has no `commutative diagram` mode marker"
+  let (scene, (w, h)) ← Lowering.lower d
   let canvas : SVG.Canvas := { width := w, height := h }
   return SVG.render scene canvas
 
