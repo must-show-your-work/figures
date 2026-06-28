@@ -44,12 +44,11 @@ private def shorten (a b : Pos2) (shortenBy : Float := 50) : Pos2 × Pos2 :=
     let b' : Pos2 := (b.1 - ux * shortenBy, b.2 - uy * shortenBy)
     (a', b')
 
-/-- Emit a `text` shape for a node. -/
+/-- Emit a `mathText` shape for a node — labels are LaTeX-rendered. -/
 private def nodeShape (n : Node) (pos : Pos2) : Shape Pos2 :=
-  -- Center the text on the position by anchoring slightly above-center.
   -- SVG `<text>` anchors at the baseline; nudge by +6px so the glyph
   -- visually centers on `pos`.
-  .text n.name (pos.1, pos.2 + 6) n.label.fallbackText
+  .mathText n.name (pos.1, pos.2 + 6) n.label.fallbackText
 
 /-- Emit an `arrow` shape for an edge plus an optional `text` shape
 for its label. The arrow ID is `e_<src>_<tgt>`; the label ID (when
@@ -85,18 +84,23 @@ private def edgeShapes (e : Edge) (srcP tgtP : Pos2) (diagCentroid : Pos2) :
       (mx + perp1.1 * offset * sign,
        my + perp1.2 * offset * sign + 6)
   let labelId := s!"lbl_{e.source}_{e.target}"
-  let labelShape : Shape Pos2 := .text labelId labelP labelText
+  let labelShape : Shape Pos2 := .mathText labelId labelP labelText
   return #[arrow, labelShape]
 
 /-- Emit a `↻` symbol for a commutativity cell — placed at the
-centroid of all node positions referenced in the cell's paths. -/
+centroid of all node positions referenced in the cell's paths.
+Rendered via `mathText` with a `\mathrm` wrapper so the SVG backend
+emits a bigger glyph (larger `font-size` than ordinary labels). -/
 private def cellShape (idx : Nat) (positions : Positions) (cell : Cell) : Option (Shape Pos2) :=
   let allNames := cell.paths.flatMap id
   let pts : Array Pos2 := allNames.filterMap fun n => positions[n]?
   if pts.isEmpty then none
   else
     let (cx, cy) := centroid pts
-    some <| .text s!"commute_{idx}" (cx, cy + 6) "↻"
+    -- Use a dedicated commute-marker shape id and let the SVG backend
+    -- style it (a separate CSS class lifts the font-size above the
+    -- label default).
+    some <| .text s!"commute_{idx}" (cx, cy + 14) "↻"
 
 /-! ## Top-level lowering -/
 

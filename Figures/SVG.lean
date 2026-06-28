@@ -15,6 +15,7 @@ Registers as `instance : Renderable (Scene Pos2) String` so atlas's
 -/
 
 import Figures
+import Figures.Labels.SimpleLatex
 
 namespace Figures.SVG
 
@@ -160,11 +161,20 @@ private def renderShape (canvas : Canvas) : Shape Pos2 → String
   | .text id pos content =>
     -- HTML-escape `& < >` so the SVG stays well-formed. Styling is
     -- via the `.txt` CSS class in the `<style>` block (see `render`).
-    -- This matches the hand-authored SVGs that render reliably in
-    -- lean.nvim's libresvg path; inline `font-family` attributes
-    -- silently drop text in some libresvg configurations.
+    -- The dedicated `commute_*` IDs get the larger `.commute` class
+    -- so the ↻ glyph reads at a more proportional size relative to
+    -- the surrounding labels.
     let escaped := content.replace "&" "&amp;" |>.replace "<" "&lt;" |>.replace ">" "&gt;"
-    s!"  <text id=\"{id}\" class=\"txt\" x=\"{fmt pos.x}\" y=\"{fmt pos.y}\">{escaped}</text>"
+    let cls := if id.startsWith "commute_" then "commute" else "txt"
+    s!"  <text id=\"{id}\" class=\"{cls}\" text-anchor=\"middle\" x=\"{fmt pos.x}\" y=\"{fmt pos.y}\">{escaped}</text>"
+  | .mathText id pos source =>
+    -- LaTeX-rendered label. Body is `<tspan>` children produced by
+    -- the SimpleLatex parser; the outer `<text>` carries the `.lbl`
+    -- (italic) class since math labels are italic by convention.
+    -- `text-anchor=middle` so the rendered glyph is centered on the
+    -- supplied position — matches the lowering's offset math.
+    let body := Figures.Labels.SimpleLatex.render source
+    s!"  <text id=\"{id}\" class=\"lbl\" text-anchor=\"middle\" x=\"{fmt pos.x}\" y=\"{fmt pos.y}\">{body}</text>"
   | .arrow id a b bend head style =>
     -- Straight if bend ≈ 0; otherwise a quadratic bezier whose
     -- control point sits at the chord midpoint displaced perpendicular
@@ -219,9 +229,10 @@ private def shapeAnchor (canvas : Canvas) : Shape Pos2 → Pos2
     let (p, _) := extendToViewport a b canvas.width canvas.height
     let nudgeX := if p.x < canvas.width / 2 then 40 else -40
     (p.x + nudgeX, p.y)
-  | .circle _ center _ _ => center
-  | .text _ pos _        => pos
-  | .arrow _ a b _ _ _   => ((a.x + b.x) / 2, (a.y + b.y) / 2)
+  | .circle _ center _ _   => center
+  | .text _ pos _          => pos
+  | .mathText _ pos _       => pos
+  | .arrow _ a b _ _ _     => ((a.x + b.x) / 2, (a.y + b.y) / 2)
 
 private def shapeId : Shape Pos2 → Name
   | .point id _ _      => id
@@ -230,6 +241,7 @@ private def shapeId : Shape Pos2 → Name
   | .line id _ _ _     => id
   | .circle id _ _ _   => id
   | .text id _ _       => id
+  | .mathText id _ _   => id
   | .arrow id _ _ _ _ _ => id
 
 private def anchorOf (canvas : Canvas) (shapes : Array (Shape Pos2)) (target : Name) : Option Pos2 :=
@@ -322,6 +334,7 @@ def render (s : Scene Pos2) (canvas : Canvas := {}) : String :=
     "  <style>\n"
     ++ "    .txt { font-family: \"DejaVu Serif\", serif; font-size: 22px; fill: #073642; " ++ halo ++ " }\n"
     ++ "    .lbl { font-family: \"DejaVu Serif\", serif; font-size: 22px; font-style: italic; fill: #073642; " ++ halo ++ " }\n"
+    ++ "    .commute { font-family: \"DejaVu Serif\", serif; font-size: 36px; fill: #586e75; " ++ halo ++ " }\n"
     ++ "    .callout { font-family: \"DejaVu Sans\", sans-serif; font-size: 18px; fill: #555; " ++ halo ++ " }\n"
     ++ "  </style>"
   -- Arrowhead markers. SVG marker units are in stroke widths by default;

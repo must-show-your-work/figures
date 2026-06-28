@@ -123,6 +123,12 @@ inductive Shape (P : Type)
   | line    (id : Name) (a b : P)                          (style : Style := .default)
   | circle  (id : Name) (center : P) (radius : Float)      (style : Style := .default)
   | text    (id : Name) (pos : P) (content : String)
+  /-- Math text: `source` is a LaTeX-flavored source string (e.g.
+  `m_{A}`, `\alpha_X`). Rendered via the SimpleLatex parser to SVG
+  `<tspan>`s — subscripts, superscripts, Greek letters, and a small
+  set of math operators are supported. Falls back to plain text for
+  unrecognized commands. -/
+  | mathText (id : Name) (pos : P) (source : String)
   /-- A directed arrow from `a` to `b` with an arrowhead at `b`.
   Used by category diagrams. `bend` is a small displacement
   perpendicular to the chord (positive curves left, negative right,

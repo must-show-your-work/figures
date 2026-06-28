@@ -423,6 +423,7 @@ private def shapeScale (cx cy s : Float) : Shape Pos2 → Shape Pos2 :=
   | .line id a b st        => .line id (sc a) (sc b) st
   | .circle id c r st      => .circle id (sc c) (r * s) st
   | .text id p t           => .text id (sc p) t
+  | .mathText id p src     => .mathText id (sc p) src
   | .arrow id a b bd hd st => .arrow id (sc a) (sc b) bd hd st
 
 /-- Translate so the bbox center lands at the canvas center, then
@@ -460,6 +461,7 @@ private def fitToCanvas (shapes : Array (Shape Pos2)) (canvasW canvasH : Float) 
       | .line id a b st        => .line id (transform a) (transform b) st
       | .circle id c r st      => .circle id (transform c) (r * s) st
       | .text id p t           => .text id (transform p) t
+      | .mathText id p src     => .mathText id (transform p) src
       | .arrow id a b bd hd st => .arrow id (transform a) (transform b) bd hd st
 
 
@@ -908,6 +910,8 @@ private def shapeAnchorFor (canvasW canvasH : Float) (shapes : Array (Shape Pos2
     | .circle id c _ _ =>
       if id == target then some c else none
     | .text id pos _ =>
+      if id == target then some pos else none
+    | .mathText id pos _ =>
       if id == target then some pos else none
     | .arrow id a b _ _ _ =>
       if id == target then some ((a.x + b.x) / 2, (a.y + b.y) / 2) else none
