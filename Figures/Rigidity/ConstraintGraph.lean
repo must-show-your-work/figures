@@ -239,11 +239,15 @@ private def applyExists (g : ConstraintGraph) (names : Array Name) :
     let (j', _) := ensureJoint g'.joints n
     { g' with joints := j' }
 
-/-- Public entry: walk a Construction's stmts and produce the graph. -/
+/-- Public entry: walk a Construction's stmts and produce the graph.
+Category-diagram-mode stmts (mode/node/edge/commutes/layoutHint) are
+ignored — rigidity analysis applies to the geometry-mode statements
+only. -/
 def build (c : Construction) : ConstraintGraph :=
   c.stmts.foldl (init := ({} : ConstraintGraph)) fun g s => match s with
     | .«exists» names _   => applyExists g names
     | .assert claim _     => applyAssert g claim
     | .construct name expr => applyConstruct g name expr
+    | .mode _ | .node _ _ | .edge _ _ _ _ | .commutes _ | .layoutHint _ => g
 
 end Figures.Rigidity.ConstraintGraph

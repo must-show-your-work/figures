@@ -417,12 +417,13 @@ private def boundingBox (positions : Array Pos2) : Option (Pos2 × Pos2) :=
 private def shapeScale (cx cy s : Float) : Shape Pos2 → Shape Pos2 :=
   let sc (p : Pos2) : Pos2 := (cx + (p.x - cx) * s, cy + (p.y - cy) * s)
   fun shape => match shape with
-  | .point id p st       => .point id (sc p) st
-  | .segment id a b st   => .segment id (sc a) (sc b) st
-  | .ray id a b st       => .ray id (sc a) (sc b) st
-  | .line id a b st      => .line id (sc a) (sc b) st
-  | .circle id c r st    => .circle id (sc c) (r * s) st
-  | .text id p t         => .text id (sc p) t
+  | .point id p st         => .point id (sc p) st
+  | .segment id a b st     => .segment id (sc a) (sc b) st
+  | .ray id a b st         => .ray id (sc a) (sc b) st
+  | .line id a b st        => .line id (sc a) (sc b) st
+  | .circle id c r st      => .circle id (sc c) (r * s) st
+  | .text id p t           => .text id (sc p) t
+  | .arrow id a b bd hd st => .arrow id (sc a) (sc b) bd hd st
 
 /-- Translate so the bbox center lands at the canvas center, then
 scale uniformly so the bbox fits within 0.85 of the canvas dimensions.
@@ -453,12 +454,13 @@ private def fitToCanvas (shapes : Array (Shape Pos2)) (canvasW canvasH : Float) 
       let transform (p : Pos2) : Pos2 :=
         (canvasCx + (p.x - bboxCx) * s, canvasCy + (p.y - bboxCy) * s)
       shapes.map fun shape => match shape with
-      | .point id p st       => .point id (transform p) st
-      | .segment id a b st   => .segment id (transform a) (transform b) st
-      | .ray id a b st       => .ray id (transform a) (transform b) st
-      | .line id a b st      => .line id (transform a) (transform b) st
-      | .circle id c r st    => .circle id (transform c) (r * s) st
-      | .text id p t         => .text id (transform p) t
+      | .point id p st         => .point id (transform p) st
+      | .segment id a b st     => .segment id (transform a) (transform b) st
+      | .ray id a b st         => .ray id (transform a) (transform b) st
+      | .line id a b st        => .line id (transform a) (transform b) st
+      | .circle id c r st      => .circle id (transform c) (r * s) st
+      | .text id p t           => .text id (transform p) t
+      | .arrow id a b bd hd st => .arrow id (transform a) (transform b) bd hd st
 
 
 /-! ## Top-level lowering
@@ -907,6 +909,8 @@ private def shapeAnchorFor (canvasW canvasH : Float) (shapes : Array (Shape Pos2
       if id == target then some c else none
     | .text id pos _ =>
       if id == target then some pos else none
+    | .arrow id a b _ _ _ =>
+      if id == target then some ((a.x + b.x) / 2, (a.y + b.y) / 2) else none
 
 /-- Extract the endpoints of every visible-segment shape (segments,
 rays, lines) so the label solver can repel ghosts away from them.
@@ -1245,7 +1249,7 @@ open Figures.Construction.Lowering
 /-- True iff this construction is in `commutative diagram` mode —
 i.e. contains a `mode "commutative diagram"` statement. Geometry-mode
 constructions have no `mode` stmt; absence of the stmt = geometry. -/
-def Construction.isCategoryDiagram (c : Construction) : Bool :=
+def isCategoryDiagram (c : Construction) : Bool :=
   c.stmts.any fun s => match s with
     | .mode "commutative diagram" => true
     | _ => false
@@ -1259,7 +1263,7 @@ Errors in the category path collapse to an empty Scene with a `text`
 shape carrying the error message; geometry mode never fails (the
 Verlet lowering accepts any input). -/
 def lowerDispatch (c : Construction) : Scene Pos2 :=
-  if c.isCategoryDiagram then
+  if isCategoryDiagram c then
     match Figures.Category.Diagram.fromConstruction c with
     | none =>
       { shapes := #[ .text "err" (40, 40) "category mode marker missing" ] }
