@@ -332,10 +332,10 @@ def render (s : Scene Pos2) (canvas : Canvas := {}) : String :=
   let halo := "stroke: " ++ bg ++ "; stroke-width: 4px; paint-order: stroke;"
   let styleBlock := if !canvas.inlineStyles then "" else
     "  <style>\n"
-    ++ "    .txt { font-family: \"DejaVu Serif\", serif; font-size: 22px; fill: #073642; " ++ halo ++ " }\n"
-    ++ "    .lbl { font-family: \"DejaVu Serif\", serif; font-size: 22px; font-style: italic; fill: #073642; " ++ halo ++ " }\n"
-    ++ "    .commute { font-family: \"DejaVu Serif\", serif; font-size: 36px; fill: #586e75; " ++ halo ++ " }\n"
-    ++ "    .callout { font-family: \"DejaVu Sans\", sans-serif; font-size: 18px; fill: #555; " ++ halo ++ " }\n"
+    ++ "    .txt { font-family: \"DejaVu Serif\", serif; font-size: 33px; fill: #073642; " ++ halo ++ " }\n"
+    ++ "    .lbl { font-family: \"DejaVu Serif\", serif; font-size: 33px; font-style: italic; fill: #073642; " ++ halo ++ " }\n"
+    ++ "    .commute { font-family: \"DejaVu Serif\", serif; font-size: 54px; fill: #586e75; " ++ halo ++ " }\n"
+    ++ "    .callout { font-family: \"DejaVu Sans\", sans-serif; font-size: 27px; fill: #555; " ++ halo ++ " }\n"
     ++ "  </style>"
   -- Arrowhead markers. SVG marker units are in stroke widths by default;
   -- refX positions the tip at the marker's reference point so the

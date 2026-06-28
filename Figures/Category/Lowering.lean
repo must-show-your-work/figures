@@ -29,10 +29,10 @@ private def centroid (pts : Array Pos2) : Pos2 :=
     (sx / n, sy / n)
 
 /-- Shorten an `a → b` chord by `shortenBy` user-units at each end so
-the arrow doesn't run into the node-label glyphs. The default of
-`50` reserves enough breathing room for two-character labels at
-22px text — adjust if you start using longer node labels. -/
-private def shorten (a b : Pos2) (shortenBy : Float := 50) : Pos2 × Pos2 :=
+the arrow doesn't run into the node-label glyphs. Default `75`
+matches the SVG backend's 33px label font; bump if labels get
+longer or font-size grows further. -/
+private def shorten (a b : Pos2) (shortenBy : Float := 75) : Pos2 × Pos2 :=
   let dx := b.1 - a.1
   let dy := b.2 - a.2
   let len := (dx * dx + dy * dy).sqrt
@@ -71,7 +71,7 @@ private def edgeShapes (e : Edge) (srcP tgtP : Pos2) (diagCentroid : Pos2) :
   let dx := b.1 - a.1
   let dy := b.2 - a.2
   let len := (dx * dx + dy * dy).sqrt
-  let offset : Float := 30  -- user units perpendicular from the chord
+  let offset : Float := 45  -- user units perpendicular from the chord
   let labelP : Pos2 :=
     if len < 0.001 then (mx, my)
     else
