@@ -28,10 +28,11 @@ private def centroid (pts : Array Pos2) : Pos2 :=
     let n  := pts.size.toFloat
     (sx / n, sy / n)
 
-/-- Position offset toward the centroid of `b - a`, shortened by
-`shortenBy` user-units at each end. Ensures arrows don't overlap node
-labels visually. -/
-private def shorten (a b : Pos2) (shortenBy : Float := 28) : Pos2 × Pos2 :=
+/-- Shorten an `a → b` chord by `shortenBy` user-units at each end so
+the arrow doesn't run into the node-label glyphs. The default of
+`50` reserves enough breathing room for two-character labels at
+22px text — adjust if you start using longer node labels. -/
+private def shorten (a b : Pos2) (shortenBy : Float := 50) : Pos2 × Pos2 :=
   let dx := b.1 - a.1
   let dy := b.2 - a.2
   let len := (dx * dx + dy * dy).sqrt
@@ -52,26 +53,37 @@ private def nodeShape (n : Node) (pos : Pos2) : Shape Pos2 :=
 
 /-- Emit an `arrow` shape for an edge plus an optional `text` shape
 for its label. The arrow ID is `e_<src>_<tgt>`; the label ID (when
-present) is `lbl_<src>_<tgt>`. -/
-private def edgeShapes (e : Edge) (srcP tgtP : Pos2) : Array (Shape Pos2) := Id.run do
+present) is `lbl_<src>_<tgt>`.
+
+`diagCentroid` is the centroid of ALL node positions in the diagram.
+Label offsets are computed perpendicular to the chord AWAY from
+`diagCentroid` — that puts boundary-edge labels on the outside of
+the diagram instead of crammed toward its center. -/
+private def edgeShapes (e : Edge) (srcP tgtP : Pos2) (diagCentroid : Pos2) :
+    Array (Shape Pos2) := Id.run do
   let (a, b) := shorten srcP tgtP
   let arrowId := s!"e_{e.source}_{e.target}"
   let arrow : Shape Pos2 := .arrow arrowId a b e.bend e.head .default
   let labelText := e.label.fallbackText
   if labelText.isEmpty then
     return #[arrow]
-  -- Label position: midpoint of the chord, displaced perpendicular
-  -- to the chord by a fixed offset so it sits next to the arrow,
-  -- not on top of it.
   let mx := (a.1 + b.1) / 2
   let my := (a.2 + b.2) / 2
   let dx := b.1 - a.1
   let dy := b.2 - a.2
   let len := (dx * dx + dy * dy).sqrt
-  let offset := 18  -- user units perpendicular from the chord
+  let offset : Float := 30  -- user units perpendicular from the chord
   let labelP : Pos2 :=
     if len < 0.001 then (mx, my)
-    else (mx + (-dy / len) * offset, my + (dx / len) * offset + 6)
+    else
+      -- Two candidate perpendicular directions: (-dy/len, dx/len)
+      -- and its negation. Pick the one that points AWAY from the
+      -- diagram centroid so the label lands on the outside.
+      let perp1 : Pos2 := (-dy / len, dx / len)
+      let toMid : Pos2 := (mx - diagCentroid.1, my - diagCentroid.2)
+      let sign  : Float := if perp1.1 * toMid.1 + perp1.2 * toMid.2 > 0 then 1 else -1
+      (mx + perp1.1 * offset * sign,
+       my + perp1.2 * offset * sign + 6)
   let labelId := s!"lbl_{e.source}_{e.target}"
   let labelShape : Shape Pos2 := .text labelId labelP labelText
   return #[arrow, labelShape]
@@ -93,15 +105,19 @@ bounds (so callers can size the SVG viewport tightly). -/
 def lower (d : Diagram) (c : Layout.CanvasParams := {}) :
     Except String (Scene Pos2 × Pos2) := do
   let (positions, bounds) ← Layout.apply d c
+  -- Centroid of all node positions — used by edge-label placement
+  -- to push labels to the outside of the diagram.
+  let nodeCenters : Array Pos2 := d.nodes.filterMap fun n => positions[n.name]?
+  let diagCentroid := centroid nodeCenters
   -- Nodes
   let nodeShapes := d.nodes.map fun n =>
     match positions[n.name]? with
     | some pos => nodeShape n pos
     | none     => nodeShape n (0, 0)  -- shouldn't happen if layout is sane
-  -- Edges (with labels)
+  -- Edges (with labels positioned away from centroid)
   let edgeShapes := d.edges.flatMap fun e =>
     match positions[e.source]?, positions[e.target]? with
-    | some sp, some tp => Lowering.edgeShapes e sp tp
+    | some sp, some tp => Lowering.edgeShapes e sp tp diagCentroid
     | _, _             => #[]
   -- Commute markers (one ↻ per cell)
   let cellShapes := d.cells.mapIdx fun i cell => cellShape i positions cell

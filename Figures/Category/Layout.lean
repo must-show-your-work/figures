@@ -28,13 +28,19 @@ abbrev Positions := Std.HashMap String Pos2
 User-coordinate units; the SVG canvas will be sized to fit. -/
 
 structure CanvasParams where
-  /-- Outer padding (margin) around the diagram bounding box. -/
-  padding   : Float := 100
-  /-- Horizontal spacing between adjacent grid cells. -/
-  cellW     : Float := 220
-  /-- Vertical spacing between adjacent grid cells. -/
-  cellH     : Float := 130
+  /-- Target canvas width. Diagram is centered and scaled to occupy
+  most of this; defaults match the standard figure-widget viewport. -/
+  canvasW   : Float := 1280
+  /-- Target canvas height. -/
+  canvasH   : Float := 720
+  /-- Outer padding (margin) around the diagram, in user units. -/
+  padding   : Float := 160
 deriving Repr, Inhabited
+
+/-- Derived: usable width inside padding. -/
+def CanvasParams.innerW (c : CanvasParams) : Float := c.canvasW - 2 * c.padding
+/-- Derived: usable height inside padding. -/
+def CanvasParams.innerH (c : CanvasParams) : Float := c.canvasH - 2 * c.padding
 
 
 /-! ## Square layout
@@ -56,20 +62,21 @@ The naturality square is the canonical case:
 def square (d : Diagram) (c : CanvasParams := {}) : Except String Positions := do
   unless d.nodes.size == 4 do
     throw s!"square layout: expected 4 nodes, got {d.nodes.size}"
-  let p := c.padding
-  let w := c.cellW
-  let h := c.cellH
+  -- Nodes sit at the corners of a 2×2 grid, scaled to the inner area.
+  let left   := c.padding
+  let right  := c.canvasW - c.padding
+  let top    := c.padding
+  let bottom := c.canvasH - c.padding
   let mut out : Std.HashMap String Pos2 := {}
-  out := out.insert d.nodes[0]!.name (p,         p)
-  out := out.insert d.nodes[1]!.name (p + w,     p)
-  out := out.insert d.nodes[2]!.name (p,         p + h)
-  out := out.insert d.nodes[3]!.name (p + w,     p + h)
+  out := out.insert d.nodes[0]!.name (left,  top)
+  out := out.insert d.nodes[1]!.name (right, top)
+  out := out.insert d.nodes[2]!.name (left,  bottom)
+  out := out.insert d.nodes[3]!.name (right, bottom)
   return out
 
-/-- Final canvas bounds for the square layout (so the renderer can
-size the viewport tightly around the diagram). -/
+/-- Final canvas bounds — fills the canvas params target. -/
 def squareBounds (c : CanvasParams := {}) : Pos2 :=
-  (c.padding * 2 + c.cellW, c.padding * 2 + c.cellH)
+  (c.canvasW, c.canvasH)
 
 
 /-! ## Triangle layout
@@ -80,18 +87,19 @@ Source order: nodes[0] → apex, nodes[1] → bottom-left, nodes[2] → bottom-r
 def triangle (d : Diagram) (c : CanvasParams := {}) : Except String Positions := do
   unless d.nodes.size == 3 do
     throw s!"triangle layout: expected 3 nodes, got {d.nodes.size}"
-  let p := c.padding
-  let w := c.cellW
-  let h := c.cellH
-  let cx := p + w / 2
+  let left   := c.padding
+  let right  := c.canvasW - c.padding
+  let top    := c.padding
+  let bottom := c.canvasH - c.padding
+  let centerX := (left + right) / 2
   let mut out : Std.HashMap String Pos2 := {}
-  out := out.insert d.nodes[0]!.name (cx,    p)
-  out := out.insert d.nodes[1]!.name (p,     p + h)
-  out := out.insert d.nodes[2]!.name (p + w, p + h)
+  out := out.insert d.nodes[0]!.name (centerX, top)
+  out := out.insert d.nodes[1]!.name (left,    bottom)
+  out := out.insert d.nodes[2]!.name (right,   bottom)
   return out
 
 def triangleBounds (c : CanvasParams := {}) : Pos2 :=
-  (c.padding * 2 + c.cellW, c.padding * 2 + c.cellH)
+  (c.canvasW, c.canvasH)
 
 
 /-! ## Layout dispatch
