@@ -178,8 +178,12 @@ private partial def parseAtom (s : ParseState) : Option (Token × ParseState) :=
       | some (g, s'') => some (Token.super g, s'')
       | none          => none
     else if c == '\'' then
-      -- Prime: render as superscript ′ (Unicode PRIME U+2032).
-      some (Token.super (.one (.plain "′")), s.advance)
+      -- Prime: emit U+2032 (PRIME) as a plain full-size token rather
+      -- than wrapping in a superscript-tspan. The glyph already sits
+      -- high on the baseline by shape; shrinking to 70% in a serif
+      -- font makes it invisibly thin. Full-size + no baseline-shift
+      -- reads as a proper math prime in DejaVu Serif and similar.
+      some (Token.plain "′", s.advance)
     else if isPlainChar c then
       let (text, s') := takeWhile s isPlainChar
       some (Token.plain text, s')
